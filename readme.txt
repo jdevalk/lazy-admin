@@ -4,11 +4,11 @@ Tags: admin, performance, command palette, javascript
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.5.0
+Stable tag: 0.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Loads the Command Palette, the media modal, the Customizer's code editor, the plugin update and install scripts, and the media library's audio and video player only when you open them, and trims the admin CSS bundle to the stylesheets each screen uses, so classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, six screens skip the update and install scripts until an update, install or details button is used, the media library skips the audio and video player until an audio or video attachment opens, the Customizer skips the media modal scripts until a media control is used, the Dashboard and Comments screen skip the reply editor until a Reply button is used, the Posts and Pages lists skip Quick Edit until a Quick Edit link is used, Writing Settings no longer loads the user profile scripts it never uses, and every admin screen loads a smaller shared stylesheet instead of one stylesheet per screen it never shows.
+Loads the Command Palette, media modal, code editor, update scripts and media player only when you use them, and trims the admin CSS bundle to the stylesheets each screen needs. Classic admin screens load much faster.
 
 == Description ==
 
@@ -92,13 +92,17 @@ Yes. The CSS trim only removes stylesheets for screens you are not on: the Dashb
 
 = How much faster is it? =
 
-Measured on this plugin (WordPress 7.1.4, total JavaScript and CSS downloaded per screen): Dashboard 4.0 MB to 0.7 MB (83% smaller), Posts list 3.8 MB to 0.3 MB (92%), Settings > General 4.3 MB to 0.3 MB (92%), Media library 4.3 MB to 0.7 MB (84%), Post editor 8.5 MB to 8.4 MB (2%, it genuinely needs its scripts), Customizer 1.7 MB to 0.6 MB (68%). Gzipped, the same screens save about 1.0 to 1.2 MB each on the wire, except the Post editor (about 26 KB) and the Customizer (about 0.3 MB).
+Measured on this plugin (WordPress 7.1.4, total JavaScript and CSS downloaded per screen): Dashboard 4.0 MB to 0.7 MB (82% smaller), Posts list 3.8 MB to 0.3 MB (92%), Settings > General 4.3 MB to 0.3 MB (92%), Media library 4.3 MB to 0.7 MB (84%), Post editor 8.5 MB to 8.4 MB (2%, it genuinely needs its scripts), Customizer 1.7 MB to 0.6 MB (68%). Gzipped, the same screens save about 1.0 to 1.2 MB each on the wire, except the Post editor (about 26 KB) and the Customizer (about 0.3 MB).
 
 Measured on WordPress 7.2-beta4 (see the article this plugin is based on): Settings > General went from 80 scripts to 39, the Dashboard after login from 6.7 MB downloaded to 1.4 MB, and DOMContentLoaded on the Dashboard from 282 ms to 155 ms (696 ms to 226 ms on a 4x slower CPU). Your numbers will vary, but the scripts that are gone are gone on every classic admin screen.
 
-Stylesheet bundle only (load-styles.php, minified KB): Dashboard 421 to 273 (35% smaller), Posts list 416 to 245 (41%), Settings > General 416 to 267 (36%), Media library 451 to 316 (30%), Post editor 1183 to 1028 (13%), Customizer 470 to 327 (30%). Gzipped, each of those screens saves 24 to 31 KB on the wire. The Posts list number is the shared bundle, so the Posts and Pages lists, Comments, Users, Plugins, Tools, Export, Import and settings screens all share it.
+Stylesheet bundle only (load-styles.php, minified KB): Dashboard 421 to 304 (28% smaller), Posts list 416 to 245 (41%), Settings > General 416 to 267 (36%), Media library 451 to 316 (30%), Post editor 1183 to 1028 (13%), Customizer 470 to 327 (30%). Gzipped, each of those screens saves 21 to 31 KB on the wire. The Posts list number is the shared bundle, so the Posts and Pages lists, Comments, Users, Plugins, Tools, Export, Import and settings screens all share it.
 
 == Changelog ==
+
+= 0.5.1 =
+* Fixed: the Dashboard keeps edit.css, so the dashboard widgets keep their white background, border and shadow. The 0.5.0 CSS trim removed it from the Dashboard, leaving the widgets flat and grey. The Dashboard bundle is now 304 KB instead of 273 KB, still 28% smaller than before the trim.
+* Shortened the plugin description on the Plugins page to two sentences.
 
 = 0.5.0 =
 * Renumbered from 1.6.0: the plugin is still in 0.x development, so 1.x overstated its maturity. Same code as 1.6.0.

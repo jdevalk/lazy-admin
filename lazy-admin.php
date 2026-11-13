@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Lazy Admin
  * Plugin URI:        https://github.com/jdevalk/lazy-admin
- * Description:       Loads the Command Palette, the media modal, the Customizer's code editor, the update and plugin install scripts, and the media library's audio and video player only when you open them, and trims the admin CSS bundle to the stylesheets each screen uses. Classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, the Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens skip the update and install scripts until one of their buttons is used, the media library skips the audio and video player until an audio or video attachment is opened, the Customizer skips the media modal scripts until a media control is used, the Dashboard and Comments screen skip the reply editor until a Reply button is used, the Posts and Pages lists skip Quick Edit until a Quick Edit link is used, Writing Settings no longer loads the user profile scripts it never uses, and every admin screen loads a smaller shared stylesheet instead of one stylesheet per screen it never shows, so they load noticeably faster.
- * Version:           0.5.0
+ * Description:       Loads the Command Palette, media modal, code editor, update scripts and media player only when you use them, and trims the admin CSS bundle to the stylesheets each screen needs. Classic admin screens load much faster.
+ * Version:           0.5.1
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Tested up to:      7.1
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LA_VERSION', '0.5.0' );
+define( 'LA_VERSION', '0.5.1' );
 
 add_action( 'init', 'la_init' );
 
@@ -1476,7 +1476,7 @@ function la_trim_css_reenqueue_map() {
 	return apply_filters(
 		'la_trim_css_reenqueue',
 		array(
-			'dashboard'       => array( 'dashboard' ),
+			'dashboard'       => array( 'dashboard', 'edit' ),
 			'upload'          => array( 'media' ),
 			'themes'          => array( 'themes' ),
 			'theme-install'   => array( 'themes' ),
@@ -1506,6 +1506,11 @@ function la_trim_css_reenqueue_map() {
  * stylesheet URL, and it is the list-table stylesheet that holds that
  * URL together. It is removed only on the post editor and the Customizer,
  * which have their own URL and do not use it.
+ *
+ * The Dashboard keeps edit as well as dashboard: edit.css holds the
+ * .postbox rule (white background, border, shadow) that the dashboard
+ * widgets are, so stripping it leaves them flat and grey. The post
+ * editor keeps edit and media through the base check below.
  */
 function la_maybe_trim_admin_css() {
 	if ( ! apply_filters( 'la_trim_css', true ) ) {
