@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Lazy Admin
  * Plugin URI:        https://github.com/jdevalk/lazy-admin
- * Description:       Loads the Command Palette and the media modal only when you open them. Classic admin screens skip the ~40 block editor scripts the palette needs, and Settings > General skips the media library scripts the Site Icon picker needs, so they load noticeably faster.
- * Version:           1.2.0
+ * Description:       Loads the Command Palette, the media modal and the Customizer's code editor only when you open them. Classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, and the Customizer skips the CodeMirror editor until the Additional CSS section opens, so they load noticeably faster.
+ * Version:           1.3.0
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Tested up to:      7.1
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LA_VERSION', '1.2.0' );
+define( 'LA_VERSION', '1.3.0' );
 
 add_action( 'init', 'la_init' );
 
@@ -69,6 +69,18 @@ function la_init() {
 	add_action( 'admin_enqueue_scripts', 'la_snapshot_admin_queues', 1000 );
 	add_action( 'admin_footer', 'la_maybe_defer_media_assets', 9 );
 	add_action( 'admin_print_footer_scripts', 'la_print_media_assets_template', 21 );
+
+	/*
+	 * CodeMirror is the same shape of win in the Customizer: the Additional CSS
+	 * section (and the Custom HTML widget) load the whole code editor up front
+	 * for a section that starts collapsed. These hooks only fire on
+	 * customize.php, so no screen check is needed. Like the media part, this
+	 * runs on every version. The dequeue runs at the end of the enqueue hook,
+	 * not in the footer: the code editor is a head script, so by the footer
+	 * it has already printed.
+	 */
+	add_action( 'customize_controls_enqueue_scripts', 'la_maybe_defer_codemirror_assets', 1000 );
+	add_action( 'customize_controls_print_footer_scripts', 'la_print_codemirror_assets_template', 21 );
 }
 
 /**
@@ -602,4 +614,88 @@ function la_print_media_assets_template() {
 	}
 
 	printf( "<template id=\"la-media-assets\">\n%s</template>\n", $assets );
+}
+
+/**
+ * Moves the Customizer's code editor into the page footer.
+ *
+ * This runs at the end of customize_controls_enqueue_scripts, after the
+ * controls were registered and wp_enqueue_code_editor() put the code editor
+ * in the queue, but before the head prints it. Only the
+ * handles that belong to the code editor itself are deferred: the wrapper, the
+ * CodeMirror library, its stylesheet, and the lint libraries, if any were
+ * enqueued. Nothing else on the page uses those handles, and the base scripts
+ * they depend on, jQuery and Underscore, are left alone. The deferred assets
+ * wait in the template printed by la_print_codemirror_assets_template(), and
+ * the loader enqueued here adds them to the page when the Additional CSS
+ * section is first opened, or when a Custom HTML widget form opens. Core's
+ * code editor control already waits for its section to expand before it
+ * initializes the editor; the loader intercepts that expand, and wraps the
+ * control's init as a safety net for sections that are already expanded.
+ */
+function la_maybe_defer_codemirror_assets() {
+	$defer_scripts = array();
+	foreach ( array( 'code-editor', 'wp-codemirror', 'csslint', 'jshint', 'htmlhint', 'htmlhint-kses', 'jsonlint', 'esprima' ) as $handle ) {
+		if ( wp_script_is( $handle, 'enqueued' ) ) {
+			$defer_scripts[] = $handle;
+		}
+	}
+
+	$defer_styles = array();
+	foreach ( array( 'code-editor', 'wp-codemirror' ) as $handle ) {
+		if ( wp_style_is( $handle, 'enqueued' ) ) {
+			$defer_styles[] = $handle;
+		}
+	}
+
+	if ( ! $defer_scripts && ! $defer_styles ) {
+		return;
+	}
+
+	$GLOBALS['la_deferred_codemirror_scripts'] = $defer_scripts;
+	$GLOBALS['la_deferred_codemirror_styles']  = $defer_styles;
+
+	foreach ( $defer_scripts as $handle ) {
+		wp_dequeue_script( $handle );
+	}
+	foreach ( $defer_styles as $handle ) {
+		wp_dequeue_style( $handle );
+	}
+
+	wp_register_script(
+		'la-codemirror-loader',
+		plugins_url( 'assets/js/codemirror-loader.js', __FILE__ ),
+		array( 'customize-controls' ),
+		LA_VERSION,
+		true
+	);
+	wp_enqueue_script( 'la-codemirror-loader' );
+}
+
+/**
+ * Prints the Customizer's code editor into an inert template.
+ *
+ * The loader adds the template's contents to the page when the Additional CSS
+ * section is first opened, or when a Custom HTML widget form opens. Nothing is
+ * printed when the code editor was never enqueued, for example when syntax
+ * highlighting is turned off for the user.
+ */
+function la_print_codemirror_assets_template() {
+	$scripts = $GLOBALS['la_deferred_codemirror_scripts'] ?? array();
+	$styles  = $GLOBALS['la_deferred_codemirror_styles'] ?? array();
+
+	if ( ! $scripts && ! $styles ) {
+		return;
+	}
+
+	ob_start();
+	wp_styles()->do_items( $styles );
+	wp_scripts()->do_items( $scripts );
+	$assets = ob_get_clean();
+
+	if ( '' === trim( $assets ) ) {
+		return;
+	}
+
+	printf( "<template id=\"la-codemirror-assets\">\n%s</template>\n", $assets );
 }
