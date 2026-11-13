@@ -1,10 +1,10 @@
 # Lazy Command Palette
 
-Loads the WordPress Command Palette only when you open it, so classic admin screens skip the ~40 block editor scripts it needs.
+Loads the WordPress Command Palette and the media modal only when you open them, so classic admin screens skip the ~40 block editor scripts the palette needs, and Settings > General skips the media library scripts the Site Icon picker needs.
 
 Since WordPress 6.9, every classic screen in wp-admin loads about 40 block editor scripts before you can click anything: React, the component library, the block editor, the data layer and more. They are there for one feature, the Command Palette (Ctrl/Cmd+K). The palette is useful, but it only needs those scripts once someone opens it, and on most admin page views nobody does.
 
-This plugin is the patch from [Trac #66642](https://core.trac.wordpress.org/ticket/66642) ([PR #15871](https://github.com/WordPress/wordpress-develop/pull/15871)), packaged for WordPress 6.9 to 7.2. WordPress 7.3 loads the palette on demand itself, so on 7.3 and later the plugin does nothing and can be removed.
+This plugin is the patch from [Trac #66642](https://core.trac.wordpress.org/ticket/66642) ([PR #15871](https://github.com/WordPress/wordpress-develop/pull/15871)), packaged for WordPress 6.9 to 7.2. WordPress 7.3 loads the palette on demand itself, so on 7.3 and later the palette part of the plugin does nothing. The media modal deferral runs on every version: on Settings > General the media library scripts and modal templates wait until the Site Icon button is clicked.
 
 ## How it works
 
@@ -31,4 +31,4 @@ Measured on WordPress 7.2-beta4, from [the article this is based on](https://wp-
 
 ## Development
 
-No build step. The loader in `assets/js/command-palette-loader.js` is copied verbatim from the core patch; the PHP mirrors `wp_enqueue_command_palette_loader()` and `wp_print_command_palette_assets_template()` from WordPress 7.3.
+No build step. The loader in `assets/js/command-palette-loader.js` is copied verbatim from the core patch; the PHP mirrors `wp_enqueue_command_palette_loader()` and `wp_print_command_palette_assets_template()` from WordPress 7.3. The media loader in `assets/js/media-loader.js` follows the same pattern for the media modal.

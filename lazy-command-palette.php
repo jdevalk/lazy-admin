@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Lazy Command Palette
  * Plugin URI:        https://github.com/jdevalk/lazy-command-palette
- * Description:       Loads the Command Palette only when you open it. Classic admin screens skip the ~40 block editor scripts the palette needs, so they load noticeably faster.
- * Version:           1.0.0
+ * Description:       Loads the Command Palette and the media modal only when you open them. Classic admin screens skip the ~40 block editor scripts the palette needs, and Settings > General skips the media library scripts the Site Icon picker needs, so they load noticeably faster.
+ * Version:           1.1.0
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Tested up to:      7.1
@@ -20,45 +20,55 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LCP_VERSION', '1.0.0' );
-
-/*
- * The Command Palette only loads its scripts up front on every admin screen since
- * WordPress 6.9, and WordPress 7.3 loads it on demand itself (see Trac #66642).
- * On any other version there is nothing for this plugin to do.
- */
-if ( version_compare( get_bloginfo( 'version' ), '6.9', '<' ) || function_exists( 'wp_enqueue_command_palette_loader' ) ) {
-	return;
-}
+define( 'LCP_VERSION', '1.1.0' );
 
 add_action( 'init', 'lcp_init' );
 
 /**
- * Replaces the Command Palette's up-front loading with loading it on demand.
+ * Replaces up-front loading with loading on demand, for the Command Palette and
+ * for the media modal.
  */
 function lcp_init() {
-	$priority = has_action( 'admin_enqueue_scripts', 'wp_enqueue_command_palette_assets' );
-	if ( false !== $priority ) {
-		remove_action( 'admin_enqueue_scripts', 'wp_enqueue_command_palette_assets', $priority );
+	/*
+	 * The Command Palette only loads its scripts up front on every admin screen
+	 * since WordPress 6.9, and WordPress 7.3 loads it on demand itself
+	 * (see Trac #66642). Outside 6.9 to 7.2 there is nothing for the palette part
+	 * of this plugin to do.
+	 */
+	if ( version_compare( get_bloginfo( 'version' ), '6.9', '>=' ) && ! function_exists( 'wp_enqueue_command_palette_loader' ) ) {
+		$priority = has_action( 'admin_enqueue_scripts', 'wp_enqueue_command_palette_assets' );
+		if ( false !== $priority ) {
+			remove_action( 'admin_enqueue_scripts', 'wp_enqueue_command_palette_assets', $priority );
+		}
+
+		add_action( 'admin_enqueue_scripts', 'lcp_enqueue_command_palette_loader', 10 );
+		add_action( 'admin_print_footer_scripts', 'lcp_print_command_palette_assets_template', 20 );
+
+		/*
+		 * Core's toolbar button only shows when wp-core-commands is enqueued up front,
+		 * which is exactly what this plugin stops doing. Swap it for the loader's version
+		 * when the admin bar menu runs; core registers its button during
+		 * WP_Admin_Bar::initialize(), so this runs before it, at priority 0.
+		 */
+		add_action( 'admin_bar_menu', 'lcp_replace_admin_bar_command_palette_menu', 0 );
+
+		/*
+		 * On WordPress 7.2 and later the login screen prefetches the admin's scripts,
+		 * including the palette's. Keep those out of the prefetch; the filter does not
+		 * exist before 7.2, so this is a no-op there.
+		 */
+		add_filter( 'wp_prefetch_admin_assets', 'lcp_filter_prefetch_admin_assets', 10, 2 );
 	}
 
-	add_action( 'admin_enqueue_scripts', 'lcp_enqueue_command_palette_loader', 10 );
-	add_action( 'admin_print_footer_scripts', 'lcp_print_command_palette_assets_template', 20 );
-
 	/*
-	 * Core's toolbar button only shows when wp-core-commands is enqueued up front,
-	 * which is exactly what this plugin stops doing. Swap it for the loader's version
-	 * when the admin bar menu runs; core registers its button during
-	 * WP_Admin_Bar::initialize(), so this runs before it, at priority 0.
+	 * The media modal is a separate deferral: wp_enqueue_media() loads the whole
+	 * media library stack for a single picker on Settings > General, and core
+	 * never defers it, on any version. Unlike the palette part above, this runs
+	 * on 7.3 and later too.
 	 */
-	add_action( 'admin_bar_menu', 'lcp_replace_admin_bar_command_palette_menu', 0 );
-
-	/*
-	 * On WordPress 7.2 and later the login screen prefetches the admin's scripts,
-	 * including the palette's. Keep those out of the prefetch; the filter does not
-	 * exist before 7.2, so this is a no-op there.
-	 */
-	add_filter( 'wp_prefetch_admin_assets', 'lcp_filter_prefetch_admin_assets', 10, 2 );
+	add_action( 'admin_enqueue_scripts', 'lcp_snapshot_admin_queues', 1000 );
+	add_action( 'admin_footer', 'lcp_maybe_defer_media_assets', 9 );
+	add_action( 'admin_print_footer_scripts', 'lcp_print_media_assets_template', 21 );
 }
 
 /**
@@ -432,4 +442,164 @@ function lcp_command_palette_asset_paths() {
 	}
 
 	return array_values( array_unique( array_filter( $paths ) ) );
+}
+
+/**
+ * Records the scripts and styles the page itself enqueued.
+ *
+ * This runs last on admin_enqueue_scripts, before the page body is rendered.
+ * Anything enqueued after this point, such as the media stack that
+ * options-general.php loads while rendering the Site Icon setting, is new,
+ * and lcp_maybe_defer_media_assets() can tell it apart from the page's own.
+ */
+function lcp_snapshot_admin_queues() {
+	$GLOBALS['lcp_queued_scripts'] = wp_scripts()->queue;
+	$GLOBALS['lcp_queued_styles']  = wp_styles()->queue;
+}
+
+/**
+ * Returns a handle and everything it depends on, in dependency order.
+ *
+ * WP_Dependencies::all_deps() looks like the tool for this, but it returns a
+ * boolean and rewrites the queue as a side effect, so it cannot be used to
+ * inspect a closure. This walks the registry instead, without touching it.
+ *
+ * @param WP_Dependencies $dependencies The script or style registry.
+ * @param string[]        $roots        Handles to start from.
+ * @return string[] The roots and their dependencies, each listed once.
+ */
+function lcp_dependency_closure( $dependencies, $roots ) {
+	$closure = array();
+
+	$walk = static function ( $handles ) use ( &$walk, $dependencies, &$closure ) {
+		foreach ( (array) $handles as $handle ) {
+			if ( isset( $closure[ $handle ] ) || ! isset( $dependencies->registered[ $handle ] ) ) {
+				continue;
+			}
+			$closure[ $handle ] = true;
+			$walk( $dependencies->registered[ $handle ]->deps );
+		}
+	};
+
+	$walk( $roots );
+
+	return array_keys( $closure );
+}
+
+/**
+ * Tells whether the current screen defers the media modal.
+ *
+ * Only Settings > General does today: it is the one core screen that loads the
+ * whole media library stack for a single picker, the Site Icon button. The post
+ * editor, the media library and the customizer need the modal up front, so they
+ * are left alone.
+ *
+ * @return bool Whether the media modal is deferred on this screen.
+ */
+function lcp_screen_defers_media() {
+	/**
+	 * Filters the screens that load the media modal on demand.
+	 *
+	 * @param string[] $screens Screen IDs, as returned by get_current_screen()->id.
+	 */
+	$screens = apply_filters( 'lcp_defer_media_screens', array( 'options-general' ) );
+	$screen  = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+	return $screen && in_array( $screen->id, (array) $screens, true );
+}
+
+/**
+ * Moves the media modal's scripts, styles and templates into the page footer.
+ *
+ * This runs on admin_footer, after the page body is rendered, so the media stack
+ * that wp_enqueue_media() enqueued while rendering is in the queue but not yet
+ * printed. Only handles that appeared after the snapshot, and that belong to the
+ * media stack, are deferred; a handle another script on the page still needs
+ * prints normally, because WordPress resolves it as that script's dependency.
+ * The deferred assets wait in the template printed by
+ * lcp_print_media_assets_template(), and the loader enqueued here adds them to
+ * the page when the Site Icon button is clicked. Core's site-icon.js is left
+ * exactly as it is, so its translations and its remove-button behavior are
+ * untouched; the loader intercepts the click, loads the assets, and then lets
+ * the click through to it.
+ */
+function lcp_maybe_defer_media_assets() {
+	if ( ! lcp_screen_defers_media() ) {
+		return;
+	}
+
+	/*
+	 * The media modal's HTML templates print on admin_footer too. Keep them out
+	 * of the page until the modal opens; the loader adds them with the scripts.
+	 */
+	if ( has_action( 'admin_footer', 'wp_print_media_templates' ) ) {
+		remove_action( 'admin_footer', 'wp_print_media_templates' );
+		$GLOBALS['lcp_defer_media_templates'] = true;
+	}
+
+	$scripts = wp_scripts();
+	$styles  = wp_styles();
+
+	$new_scripts = array_diff( $scripts->queue, $GLOBALS['lcp_queued_scripts'] ?? array() );
+	$new_styles  = array_diff( $styles->queue, $GLOBALS['lcp_queued_styles'] ?? array() );
+
+	$media_scripts = lcp_dependency_closure( $scripts, array( 'media-editor', 'media-audiovideo', 'mce-view', 'image-edit', 'plupload', 'wp-plupload' ) );
+	$media_styles  = lcp_dependency_closure( $styles, array( 'media-views', 'imgareaselect', 'wp-mediaelement' ) );
+
+	$defer_scripts = array_values( array_intersect( $new_scripts, $media_scripts ) );
+	$defer_styles  = array_values( array_intersect( $new_styles, $media_styles ) );
+
+	if ( ! $defer_scripts && ! $defer_styles && empty( $GLOBALS['lcp_defer_media_templates'] ) ) {
+		return;
+	}
+
+	$GLOBALS['lcp_deferred_media_scripts'] = $defer_scripts;
+	$GLOBALS['lcp_deferred_media_styles']  = $defer_styles;
+
+	foreach ( $defer_scripts as $handle ) {
+		wp_dequeue_script( $handle );
+	}
+	foreach ( $defer_styles as $handle ) {
+		wp_dequeue_style( $handle );
+	}
+
+	wp_register_script(
+		'lcp-media-loader',
+		plugins_url( 'assets/js/media-loader.js', __FILE__ ),
+		array(),
+		LCP_VERSION,
+		true
+	);
+	wp_enqueue_script( 'lcp-media-loader' );
+}
+
+/**
+ * Prints the media modal's scripts, styles and templates into an inert template.
+ *
+ * The loader adds the template's contents to the page when the Site Icon button
+ * is clicked. Nothing is printed when the modal is already on the page, or when
+ * there was nothing to defer.
+ */
+function lcp_print_media_assets_template() {
+	$scripts   = $GLOBALS['lcp_deferred_media_scripts'] ?? array();
+	$styles    = $GLOBALS['lcp_deferred_media_styles'] ?? array();
+	$templates = ! empty( $GLOBALS['lcp_defer_media_templates'] );
+
+	if ( ! $scripts && ! $styles && ! $templates ) {
+		return;
+	}
+
+	ob_start();
+	wp_styles()->do_items( $styles );
+	wp_scripts()->do_items( $scripts );
+	if ( $templates ) {
+		wp_print_media_templates();
+	}
+	$assets = ob_get_clean();
+
+	if ( '' === trim( $assets ) ) {
+		return;
+	}
+
+	printf( "<template id=\"lcp-media-assets\">\n%s</template>\n", $assets );
 }
