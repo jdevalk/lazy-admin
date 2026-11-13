@@ -1,24 +1,35 @@
 # Lazy Admin
 
-Loads the WordPress Command Palette, the media modal, the Customizer's code editor, the plugin update and install scripts, and the media library's audio and video player only when you open them, so classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, six screens skip the update and install scripts until an update, install or details button is used, the media library skips the audio and video player until an audio or video attachment opens, the Customizer skips the media modal scripts until a media control is used, the Dashboard and Comments screen skip the reply editor until a Reply button is used, the Posts and Pages lists skip Quick Edit until a Quick Edit link is used, and Writing Settings no longer loads the user profile scripts it never uses.
+WordPress loads a lot of JavaScript in wp-admin that you only need some of the time. This plugin holds it back until you actually use the feature it belongs to, so admin screens load faster and with less to parse. There are no settings. Activate it and every classic admin screen gets faster.
 
-Since WordPress 6.9, every classic screen in wp-admin loads about 40 block editor scripts before you can click anything: React, the component library, the block editor, the data layer and more. They are there for one feature, the Command Palette (Ctrl/Cmd+K). The palette is useful, but it only needs those scripts once someone opens it, and on most admin page views nobody does.
+## What it defers
 
-This plugin is the patch from [Trac #66642](https://core.trac.wordpress.org/ticket/66642) ([PR #15871](https://github.com/WordPress/wordpress-develop/pull/15871)), packaged for WordPress 6.9 to 7.2. WordPress 7.3 loads the palette on demand itself, so on 7.3 and later the palette part of the plugin does nothing. The media modal deferral runs on every version: on Settings > General the media library scripts and modal templates wait until the Site Icon button is clicked. The code editor deferral also runs on every version: in the Customizer the CodeMirror editor waits until the Additional CSS section is first opened, or a Custom HTML widget form opens. The update scripts deferral also runs on every version: on the Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens the updates, thickbox, plugin-install and media-upload scripts wait until an update, install, details or auto-update button is used. The MediaElement player deferral also runs on every version: in the media library the player waits until an audio or video attachment is opened; image attachments never load it. The Customizer media stack deferral also runs on every version: in the Customizer the media modal scripts wait until a media control's button is first used; the attachment models stay up front so a control with a value already set still loads its thumbnail. The Reply editor deferral also runs on every version: on the Dashboard and the Comments screen quicktags and the link dialog wait until a Reply button is first used. The Quick Edit deferral also runs on every version: on the Posts and Pages lists the inline editor and its tag-suggestion scripts wait until a Quick Edit link is first clicked, or Bulk Edit is applied with the Edit bulk action. And Writing Settings no longer loads the user profile scripts it never uses.
+| Feature | Where it loads | Loads when | Saved |
+| --- | --- | --- | --- |
+| Command Palette | Every classic admin screen | Ctrl/Cmd+K or the toolbar button | About 40 scripts |
+| Media modal | Settings > General | The Site Icon button is clicked | About 400 KB of scripts, plus 57 KB of modal templates |
+| CodeMirror editor | Customizer | The Additional CSS section opens | About 600 KB |
+| Update and install scripts | Dashboard, Themes, Plugins, Add Plugins, Update Core, Import | An update, install, details or auto-update button is used | About 66 KB, on six screens |
+| MediaElement player | Media library | An audio or video attachment opens | About 170 KB |
+| Media modal stack | Customizer | A media control's button is used | About 400 KB |
+| Reply editor | Dashboard, Comments | A Reply button is used | About 50 KB |
+| Quick Edit | Posts and Pages lists | A Quick Edit link is clicked, or Bulk Edit with Edit | About 20 KB |
+| User profile scripts | Writing Settings | Never; the page has no profile or password field, so they are not loaded there at all | About 9 KB |
+
+Everything still works exactly as before. The first use loads the scripts first, so it takes a moment longer; after that it works instantly. If you never use a feature, its scripts never load.
 
 ## How it works
 
-- Admin screens get a 1.4 KB loader instead of the whole palette.
-- The palette's scripts and styles wait in an inert `<template>` at the end of the page.
-- On the first Ctrl/Cmd+K or a click on the toolbar button, the loader adds them and opens the palette. The first open takes 100 to 250 ms; after that it opens instantly, as before.
-- The post editor and the site editor load these scripts anyway, so they keep the palette up front, unchanged.
-- Plugins that add their own commands get the same `enqueue_command_palette_assets` action WordPress 7.3 fires, so their commands load together with the palette.
+Each deferred feature gets a small loader (around 1 KB) instead of its scripts. The scripts and styles wait in an inert `<template>` at the end of the page. On first use, the loader adds them to the page and then lets your click through, so the feature opens with everything in place. The loader waits for the feature's own setup to finish before the click lands, so handlers are in place when it arrives.
 
-There are no settings. Activate it and every classic admin screen gets faster.
+Two details are worth knowing:
+
+- The Command Palette part is the patch from [Trac #66642](https://core.trac.wordpress.org/ticket/66642) ([PR #15871](https://github.com/WordPress/wordpress-develop/pull/15871)), packaged for WordPress 6.9 to 7.2. WordPress 7.3 loads the palette on demand itself, so on 7.3 and later that part does nothing. Every other deferral runs on every version.
+- The post editor and the site editor load these scripts anyway, so they keep everything up front, unchanged. Plugins that add their own palette commands get the same `enqueue_command_palette_assets` action WordPress 7.3 fires, so their commands load together with the palette.
 
 ## Numbers
 
-Measured on WordPress 7.2-beta4, from [the article this is based on](https://wp-staging.com/wordpress-admin-5-mb-javascript/):
+Measured on WordPress 7.2-beta4, from [the article this plugin is based on](https://wp-staging.com/wordpress-admin-5-mb-javascript/):
 
 | | WordPress today | With the patch |
 | --- | --- | --- |
@@ -26,9 +37,30 @@ Measured on WordPress 7.2-beta4, from [the article this is based on](https://wp-
 | Downloaded for the Dashboard after login | 6.7 MB | 1.4 MB |
 | Dashboard right after login | 282 ms | 155 ms |
 | Settings, every script already cached | 98 ms | 49 ms |
-| Dashboard right after login, 4× slower CPU | 696 ms | 226 ms |
-| Settings, every script cached, 4× slower CPU | 362 ms | 123 ms |
+| Dashboard right after login, 4x slower CPU | 696 ms | 226 ms |
+| Settings, every script cached, 4x slower CPU | 362 ms | 123 ms |
+
+Measured on this plugin (WordPress 7.1.4, executed scripts per screen):
+
+| Screen | Before | After |
+| --- | --- | --- |
+| Settings > General | 76 | 13 |
+| Customizer | 33 | 22 |
+| Dashboard | 41 | 35 |
+| Comments | 22 | 20 |
+| Media library | 34 | 32 |
+| Post editor | 96 | 96 (unchanged) |
 
 ## Development
 
-No build step. The loader in `assets/js/command-palette-loader.js` is copied verbatim from the core patch; the PHP mirrors `wp_enqueue_command_palette_loader()` and `wp_print_command_palette_assets_template()` from WordPress 7.3. The media loader in `assets/js/media-loader.js` follows the same pattern for the media modal. The CodeMirror loader in `assets/js/codemirror-loader.js` follows the same pattern for the Customizer's code editor, with an extra wrap around the control's init for sections that are already expanded. The updates loader in `assets/js/updates-loader.js` follows the same pattern for the update, install and details scripts, with shims for `tb_show` and `tb_remove` so plugins that call thickbox directly still work. The MediaElement loader in `assets/js/mediaelement-loader.js` follows the same pattern for the media library player, stripping the player from the media views dependency chain so it never loads up front. The Customizer media loader in `assets/js/customizer-media-loader.js` follows the same pattern for the Customizer's media modal, stripping the media stack from the Customizer views dependency chain and keeping the attachment models up front. The Reply editor loader in `assets/js/reply-editor-loader.js` follows the same pattern for the comment reply editor, running the editor init the footer script would have run once the scripts load. The Quick Edit loader in `assets/js/quick-edit-loader.js` follows the same pattern for the inline editor, waiting for its jQuery ready setup before the re-dispatched click opens the editor.
+No build step. The loader in `assets/js/command-palette-loader.js` is copied verbatim from the core patch; the PHP mirrors `wp_enqueue_command_palette_loader()` and `wp_print_command_palette_assets_template()` from WordPress 7.3. Each other loader follows the same pattern for its feature:
+
+- `media-loader.js` for the media modal on Settings > General.
+- `codemirror-loader.js` for the Customizer's code editor, with an extra wrap around the control's init for sections that are already expanded.
+- `updates-loader.js` for the update, install and details scripts, with shims for `tb_show` and `tb_remove` so plugins that call thickbox directly still work.
+- `mediaelement-loader.js` for the media library player, stripping the player from the media views dependency chain so it never loads up front.
+- `customizer-media-loader.js` for the Customizer's media modal, stripping the media stack from the Customizer views dependency chain and keeping the attachment models up front so a control with a value already set still loads its thumbnail.
+- `reply-editor-loader.js` for the comment reply editor, running the editor init the footer script would have run once the scripts load.
+- `quick-edit-loader.js` for the inline editor, waiting for its jQuery ready setup before the re-dispatched click opens the editor.
+
+The Writing Settings fix needs no loader: the two scripts are simply not enqueued there.
