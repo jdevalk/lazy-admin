@@ -92,9 +92,11 @@ Yes. The CSS trim only removes stylesheets for screens you are not on: the Dashb
 
 = How much faster is it? =
 
+Measured on this plugin (WordPress 7.1.4, total JavaScript and CSS downloaded per screen): Dashboard 4.0 MB to 0.7 MB (83% smaller), Posts list 3.8 MB to 0.3 MB (92%), Settings > General 4.3 MB to 0.3 MB (92%), Media library 4.3 MB to 0.7 MB (84%), Post editor 8.5 MB to 8.4 MB (2%, it genuinely needs its scripts), Customizer 1.7 MB to 0.6 MB (68%). Gzipped, the same screens save about 1.0 to 1.2 MB each on the wire, except the Post editor (about 26 KB) and the Customizer (about 0.3 MB).
+
 Measured on WordPress 7.2-beta4 (see the article this plugin is based on): Settings > General went from 80 scripts to 39, the Dashboard after login from 6.7 MB downloaded to 1.4 MB, and DOMContentLoaded on the Dashboard from 282 ms to 155 ms (696 ms to 226 ms on a 4x slower CPU). Your numbers will vary, but the scripts that are gone are gone on every classic admin screen.
 
-Measured on this plugin (WordPress 7.1.4, stylesheet bundle per screen, minified KB): Dashboard 421 to 273 (35% smaller), Posts list 416 to 245 (41%), Settings > General 416 to 267 (36%), Media library 451 to 316 (30%), Post editor 1183 to 1028 (13%), Customizer 470 to 327 (30%). Gzipped, each of those screens saves 24 to 31 KB on the wire. The Posts list number is the shared bundle, so the Posts and Pages lists, Comments, Users, Plugins, Tools, Export, Import and settings screens all share it.
+Stylesheet bundle only (load-styles.php, minified KB): Dashboard 421 to 273 (35% smaller), Posts list 416 to 245 (41%), Settings > General 416 to 267 (36%), Media library 451 to 316 (30%), Post editor 1183 to 1028 (13%), Customizer 470 to 327 (30%). Gzipped, each of those screens saves 24 to 31 KB on the wire. The Posts list number is the shared bundle, so the Posts and Pages lists, Comments, Users, Plugins, Tools, Export, Import and settings screens all share it.
 
 == Changelog ==
 

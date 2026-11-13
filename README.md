@@ -2,6 +2,21 @@
 
 WordPress loads a lot of JavaScript in wp-admin that you only need some of the time. This plugin holds it back until you actually use the feature it belongs to, so admin screens load faster and with less to parse. It also trims the admin CSS bundle to the stylesheets each screen uses, instead of one stylesheet per screen you never visit. There are no settings. Activate it and every classic admin screen gets faster.
 
+## Savings
+
+Total JavaScript and CSS downloaded per screen, WordPress 7.1.4, measured with the plugin off and on:
+
+| Screen | Before | After | Saved | Saved % |
+| --- | --- | --- | --- | --- |
+| Dashboard (`/wp-admin/`) | 4.0 MB | 0.7 MB | 3.3 MB | 83% |
+| Posts list (`/wp-admin/edit.php`) | 3.8 MB | 0.3 MB | 3.5 MB | 92% |
+| Settings > General (`/wp-admin/options-general.php`) | 4.3 MB | 0.3 MB | 4.0 MB | 92% |
+| Media library (`/wp-admin/upload.php`) | 4.3 MB | 0.7 MB | 3.6 MB | 84% |
+| Post editor (`/wp-admin/post-new.php`) | 8.5 MB | 8.4 MB | 0.1 MB | 2% |
+| Customizer (`/wp-admin/customize.php`) | 1.7 MB | 0.6 MB | 1.2 MB | 68% |
+
+Gzipped, the same screens save about 1.0 to 1.2 MB each on the wire, except the Post editor (about 26 KB) and the Customizer (about 0.3 MB). The Post editor barely changes because it genuinely needs its scripts; the saving there is the CSS trim alone.
+
 ## What it defers
 
 | Feature | Where it loads | Loads when | Saved |
@@ -53,7 +68,7 @@ Measured on this plugin (WordPress 7.1.4, executed scripts per screen):
 | Media library | 34 | 32 |
 | Post editor | 96 | 96 (unchanged) |
 
-Stylesheet bundle per screen (load-styles.php, minified KB, WordPress 7.1.4):
+Shared stylesheet bundle only (load-styles.php, minified KB, WordPress 7.1.4). This is the CSS trim on its own, not counting the styles that are deferred with their scripts; the total per screen is in the table at the top of this readme.
 
 | Screen | Before | After | Saved | Saved % |
 | --- | --- | --- | --- | --- |
