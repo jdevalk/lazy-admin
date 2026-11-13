@@ -4,7 +4,7 @@ Tags: admin, performance, command palette, javascript
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -96,7 +96,8 @@ Measured on WordPress 7.2-beta4 (see the article this plugin is based on): Setti
 
 == Changelog ==
 
-= 1.6.0 =
+= 0.5.0 =
+* Renumbered from 1.6.0: the plugin is still in 0.x development, so 1.x overstated its maturity. Same code as 1.6.0.
 * Trims the admin CSS bundle: the per-screen stylesheets (dashboard, edit, media, themes, about, nav-menus, widgets, revisions) are removed from the shared load-styles.php bundle and re-enqueued only on the screens that need them. The shared bundle shrinks from about 426 KB to about 251 KB, and the screens that share it keep one cache entry. list-tables stays in the bundle, since it is what holds the shared URL together; it goes only on the post editor and the Customizer, which have their own URL and do not use it. This runs on every version.
 
 = 1.5.0 =
