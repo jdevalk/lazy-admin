@@ -55,14 +55,14 @@ Measured on this plugin (WordPress 7.1.4, executed scripts per screen):
 
 Stylesheet bundle per screen (load-styles.php, minified KB, WordPress 7.1.4):
 
-| Screen | Before | After | Saved |
-| --- | --- | --- | --- |
-| Dashboard (`/wp-admin/`) | 421 | 273 | 149 |
-| Posts list (`/wp-admin/edit.php`) | 416 | 245 | 172 |
-| Settings > General (`/wp-admin/options-general.php`) | 416 | 267 | 149 |
-| Media library (`/wp-admin/upload.php`) | 451 | 316 | 135 |
-| Post editor (`/wp-admin/post-new.php`) | 1183 | 1028 | 155 |
-| Customizer (`/wp-admin/customize.php`) | 470 | 327 | 144 |
+| Screen | Before | After | Saved | Saved % |
+| --- | --- | --- | --- | --- |
+| Dashboard (`/wp-admin/`) | 421 | 273 | 148 | 35% |
+| Posts list (`/wp-admin/edit.php`) | 416 | 245 | 171 | 41% |
+| Settings > General (`/wp-admin/options-general.php`) | 416 | 267 | 149 | 36% |
+| Media library (`/wp-admin/upload.php`) | 451 | 316 | 135 | 30% |
+| Post editor (`/wp-admin/post-new.php`) | 1183 | 1028 | 155 | 13% |
+| Customizer (`/wp-admin/customize.php`) | 470 | 327 | 143 | 30% |
 
 The Posts list row is the shared bundle: the Posts and Pages lists, Comments, Users, Plugins, Tools, Export, Import and the settings screens all load the same stylesheet URL, so they share one cache entry. Gzipped, the same six screens save 24 to 31 KB each on the wire.
 
