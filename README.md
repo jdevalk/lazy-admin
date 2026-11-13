@@ -1,0 +1,34 @@
+# Lazy Command Palette
+
+Loads the WordPress Command Palette only when you open it, so classic admin screens skip the ~40 block editor scripts it needs.
+
+Since WordPress 6.9, every classic screen in wp-admin loads about 40 block editor scripts before you can click anything: React, the component library, the block editor, the data layer and more. They are there for one feature, the Command Palette (Ctrl/Cmd+K). The palette is useful, but it only needs those scripts once someone opens it, and on most admin page views nobody does.
+
+This plugin is the patch from [Trac #66642](https://core.trac.wordpress.org/ticket/66642) ([PR #15871](https://github.com/WordPress/wordpress-develop/pull/15871)), packaged for WordPress 6.9 to 7.2. WordPress 7.3 loads the palette on demand itself, so on 7.3 and later the plugin does nothing and can be removed.
+
+## How it works
+
+- Admin screens get a 1.4 KB loader instead of the whole palette.
+- The palette's scripts and styles wait in an inert `<template>` at the end of the page.
+- On the first Ctrl/Cmd+K or a click on the toolbar button, the loader adds them and opens the palette. The first open takes 100 to 250 ms; after that it opens instantly, as before.
+- The post editor and the site editor load these scripts anyway, so they keep the palette up front, unchanged.
+- Plugins that add their own commands get the same `enqueue_command_palette_assets` action WordPress 7.3 fires, so their commands load together with the palette.
+
+There are no settings. Activate it and every classic admin screen gets faster.
+
+## Numbers
+
+Measured on WordPress 7.2-beta4, from [the article this is based on](https://wp-staging.com/wordpress-admin-5-mb-javascript/):
+
+| | WordPress today | With the patch |
+| --- | --- | --- |
+| Scripts on Settings > General | 80 | 39 |
+| Downloaded for the Dashboard after login | 6.7 MB | 1.4 MB |
+| Dashboard right after login | 282 ms | 155 ms |
+| Settings, every script already cached | 98 ms | 49 ms |
+| Dashboard right after login, 4× slower CPU | 696 ms | 226 ms |
+| Settings, every script cached, 4× slower CPU | 362 ms | 123 ms |
+
+## Development
+
+No build step. The loader in `assets/js/command-palette-loader.js` is copied verbatim from the core patch; the PHP mirrors `wp_enqueue_command_palette_loader()` and `wp_print_command_palette_assets_template()` from WordPress 7.3.
