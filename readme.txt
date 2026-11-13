@@ -4,11 +4,11 @@ Tags: admin, performance, command palette, javascript
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Loads the Command Palette, the media modal, the Customizer's code editor, the plugin update and install scripts, and the media library's audio and video player only when you open them, so classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, six screens skip the update and install scripts until an update, install or details button is used, and the media library skips the audio and video player until an audio or video attachment opens.
+Loads the Command Palette, the media modal, the Customizer's code editor, the plugin update and install scripts, and the media library's audio and video player only when you open them, so classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, six screens skip the update and install scripts until an update, install or details button is used, the media library skips the audio and video player until an audio or video attachment opens, the Customizer skips the media modal scripts until a media control is used, the Dashboard and Comments screen skip the reply editor until a Reply button is used, the Posts and Pages lists skip Quick Edit until a Quick Edit link is used, and Writing Settings no longer loads the user profile scripts it never uses.
 
 == Description ==
 
@@ -27,6 +27,14 @@ The same trick is applied a third time to the code editor in the Customizer. Tha
 The same trick is applied a fourth time to the update, install and details scripts on the Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens. Those six screens load about 66 KB of scripts for the plugin update, install and details modal, the thickbox modal and the media upload helper, and they are only needed when an update, install, details or auto-update button is used. This plugin holds them back until one of those buttons is used, then loads them and runs the action. Like the media and code editor deferrals, this runs on every version.
 
 The same trick is applied a fifth time to the audio and video player in the media library. That screen loads the MediaElement player, about 170 KB of scripts and styles, for the audio and video previews in the attachment details, and most attachments are images. This plugin holds the player back until an audio or video attachment is opened, then loads it and builds the player. The post editor and the Customizer need the player up front, so they are left alone. Like the other deferrals, this runs on every version.
+
+The same trick is applied a sixth time to the media modal in the Customizer. That screen loads the whole media modal stack, about 400 KB of scripts, for the Site Icon, logo, header image, background image and media widget controls, and it is only needed when one of those controls opens the modal. This plugin holds the stack back until a media control's button is first used, then loads it and opens the modal. The attachment models stay up front, so a control with a value already set still fetches its attachment data when the control is created. Like the other deferrals, this runs on every version.
+
+The same trick is applied a seventh time to the comment Reply editor on the Dashboard and the Comments screen. Those screens load quicktags and the link dialog, about 50 KB, for a reply form that only opens on click. This plugin holds them back until a Reply button is first used, then loads them, wires the editor toolbar, and opens the reply form. Double-clicking a comment to reply works the same way. Like the other deferrals, this runs on every version.
+
+The same trick is applied an eighth time to Quick Edit on the Posts and Pages lists. Those screens load the inline editor and its tag-suggestion scripts, about 20 KB, for a Quick Edit link that is only used on click, and for Bulk Edit. This plugin holds them back until a Quick Edit link is first clicked, or Bulk Edit is applied with the Edit bulk action, then loads them and opens the editor. Like the other deferrals, this runs on every version.
+
+And a ninth, smaller fix: Writing Settings loads the user profile scripts, about 9 KB, for no reason. That screen has no profile or password field anywhere, so the plugin simply stops loading them there. On the profile page the same scripts are legitimately needed and are left alone.
 
 There are no settings. Activate it and every classic admin screen gets faster.
 
@@ -64,11 +72,29 @@ Yes. Update, install, activate and auto-update buttons work as before; the first
 
 Yes. Open an audio or video attachment and the player loads, with playback as before. The first open loads the player's scripts first, so it takes a moment longer; after that it plays instantly. Image attachments never load the player.
 
+= Do the Customizer's media controls still work? =
+
+Yes. The Site Icon, logo, header image, background image and media widget controls open the media modal as before. The first use loads the modal's scripts first, so it takes a moment longer; after that it opens instantly. A control with an image already set still shows its thumbnail on load.
+
+= Does replying to a comment still work? =
+
+Yes. Click Reply on the Dashboard or the Comments screen and the reply form opens with its formatting toolbar, as before. The first Reply loads the editor's scripts first, so it takes a moment longer; after that it opens instantly. Double-clicking a comment to reply works the same way.
+
+= Does Quick Edit still work? =
+
+Yes. Click Quick Edit on the Posts or Pages list and the inline editor opens as before. The first click loads the editor's scripts first, so it takes a moment longer; after that it opens instantly. Bulk Edit with the Edit action works the same way.
+
 = How much faster is it? =
 
 Measured on WordPress 7.2-beta4 (see the article this plugin is based on): Settings > General went from 80 scripts to 39, the Dashboard after login from 6.7 MB downloaded to 1.4 MB, and DOMContentLoaded on the Dashboard from 282 ms to 155 ms (696 ms to 226 ms on a 4x slower CPU). Your numbers will vary, but the scripts that are gone are gone on every classic admin screen.
 
 == Changelog ==
+
+= 1.5.0 =
+* Loads the Customizer's media modal stack on demand: the media views, uploader, image editor and audio and video player wait until a media control's button is first used. The attachment models stay up front so a control with a value already set still loads its thumbnail. This runs on every version.
+* Loads the comment Reply editor on demand on the Dashboard and the Comments screen: quicktags and the link dialog wait until a Reply button is first used. Double-clicking a comment to reply works the same way. This runs on every version.
+* Loads Quick Edit on demand on the Posts and Pages lists: the inline editor and its tag-suggestion scripts wait until a Quick Edit link is first clicked, or Bulk Edit is applied with the Edit bulk action. This runs on every version.
+* Writing Settings no longer loads the user profile scripts: that screen has no profile or password field, so user-profile and password-strength-meter are simply not enqueued there. The profile page is unchanged.
 
 = 1.4.0 =
 * Loads the update, install and details scripts on demand on the Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens: the updates, thickbox, plugin-install and media-upload scripts wait until an update, install, details or auto-update button is used. This runs on every version.

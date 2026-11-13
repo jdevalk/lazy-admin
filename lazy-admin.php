@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Lazy Admin
  * Plugin URI:        https://github.com/jdevalk/lazy-admin
- * Description:       Loads the Command Palette, the media modal, the Customizer's code editor, the update and plugin install scripts, and the media library's audio and video player only when you open them. Classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, the Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens skip the update and install scripts until one of their buttons is used, and the media library skips the audio and video player until an audio or video attachment is opened, so they load noticeably faster.
- * Version:           1.4.0
+ * Description:       Loads the Command Palette, the media modal, the Customizer's code editor, the update and plugin install scripts, and the media library's audio and video player only when you open them. Classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, the Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens skip the update and install scripts until one of their buttons is used, the media library skips the audio and video player until an audio or video attachment is opened, the Customizer skips the media modal scripts until a media control is used, the Dashboard and Comments screen skip the reply editor until a Reply button is used, the Posts and Pages lists skip Quick Edit until a Quick Edit link is used, and Writing Settings no longer loads the user profile scripts it never uses, so they load noticeably faster.
+ * Version:           1.5.0
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Tested up to:      7.1
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LA_VERSION', '1.4.0' );
+define( 'LA_VERSION', '1.5.0' );
 
 add_action( 'init', 'la_init' );
 
@@ -83,6 +83,23 @@ function la_init() {
 	add_action( 'customize_controls_print_footer_scripts', 'la_print_codemirror_assets_template', 21 );
 
 	/*
+	 * The Customizer's media stack is the same shape of win: the media modal
+	 * scripts (media views, the uploader, the image editor, the audio and
+	 * video player) load up front for the Site Icon, logo, header image,
+	 * background image and media widget controls, and they are only needed
+	 * when one of those controls is used. These hooks only fire on
+	 * customize.php, so no screen check is needed. Like the other deferrals,
+	 * this runs on every version. media-models stays up front: a media
+	 * control with a value already set fetches its attachment data through
+	 * wp.media.attachment() when the control is created, and that lives in
+	 * media-models. The dequeue runs at the end of the enqueue hook, not in
+	 * the footer: the media scripts are head scripts, so by the footer they
+	 * have already printed.
+	 */
+	add_action( 'customize_controls_enqueue_scripts', 'la_maybe_defer_customizer_media_assets', 1000 );
+	add_action( 'customize_controls_print_footer_scripts', 'la_print_customizer_media_assets_template', 21 );
+
+	/*
 	 * The update and install scripts are the same shape of win on the screens
 	 * that manage plugins, themes and updates: updates.js, thickbox,
 	 * plugin-install.js and media-upload.js are loaded up front for buttons
@@ -111,6 +128,47 @@ function la_init() {
 	add_action( 'admin_enqueue_scripts', 'la_maybe_defer_mediaelement_assets', 1000 );
 	add_action( 'admin_footer', 'la_maybe_defer_mediaelement_assets', 9 );
 	add_action( 'admin_print_footer_scripts', 'la_print_mediaelement_assets_template', 21 );
+
+	/*
+	 * The comment Reply editor is the same shape of win on the Dashboard and
+	 * the Comments screen: quicktags and wplink load up front for a reply
+	 * form that only opens on click. The handles are named explicitly, like
+	 * the updates cluster. The first pass runs at the end of the enqueue
+	 * hook; the second pass in the footer catches anything enqueued while
+	 * rendering. A third pass runs on admin_print_footer_scripts, after
+	 * _WP_Editors re-enqueues the editor scripts for the footer (priority
+	 * 1) and before the footer scripts print (priority 10): without it the
+	 * re-enqueued quicktags would print as a regular footer script instead
+	 * of waiting in the template.
+	 */
+	add_action( 'admin_enqueue_scripts', 'la_maybe_defer_reply_editor_assets', 1000 );
+	add_action( 'admin_footer', 'la_maybe_defer_reply_editor_assets', 9 );
+	add_action( 'admin_print_footer_scripts', 'la_maybe_defer_reply_editor_assets', 2 );
+	add_action( 'admin_print_footer_scripts', 'la_print_reply_editor_assets_template', 21 );
+
+	/*
+	 * Quick Edit is the same shape of win on the Posts and Pages lists:
+	 * inline-edit-post.js and its tag-suggestion scripts load up front for
+	 * a Quick Edit link that is only used on click, and for Bulk Edit,
+	 * which is a form submit. The handles are named explicitly, like the
+	 * updates cluster. The first pass runs at the end of the enqueue hook;
+	 * the second pass in the footer catches anything enqueued while
+	 * rendering.
+	 */
+	add_action( 'admin_enqueue_scripts', 'la_maybe_defer_quick_edit_assets', 1000 );
+	add_action( 'admin_footer', 'la_maybe_defer_quick_edit_assets', 9 );
+	add_action( 'admin_print_footer_scripts', 'la_print_quick_edit_assets_template', 21 );
+
+	/*
+	 * Writing Settings loads the user profile scripts for nothing:
+	 * options-writing.php enqueues user-profile (and with it
+	 * password-strength-meter) even though the page has no profile or
+	 * password field anywhere. Those two scripts are simply not enqueued
+	 * there. The enqueue happens while the page file loads, after
+	 * admin_enqueue_scripts, so this runs on admin_print_scripts, before
+	 * the head prints.
+	 */
+	add_action( 'admin_print_scripts', 'la_maybe_drop_writing_profile_assets', 1 );
 }
 
 /**
@@ -731,6 +789,128 @@ function la_print_codemirror_assets_template() {
 }
 
 /**
+ * Defers the Customizer's media stack until a media control is used.
+ *
+ * wp_enqueue_media() loads the whole media modal stack up front on
+ * customize.php for the Site Icon, logo, header image, background image and
+ * media widget controls. The stack is only needed when one of those controls
+ * opens the modal, so the handles below wait in the template printed by
+ * la_print_customizer_media_assets_template(), and the loader adds them when
+ * a media control's button is first used.
+ *
+ * media-models stays up front on purpose. A media control with a value
+ * already set fetches its attachment data through wp.media.attachment()
+ * when the control is created (customize-controls.js, MediaControl.ready),
+ * and that lives in media-models. The imgareaselect stylesheet also stays
+ * up front: it is a dependency of the Customizer's own stylesheet, so
+ * dequeuing it would pull it back in when that stylesheet prints. It is
+ * 0.8 KB. The imgareaselect script is deferred; nothing up front depends
+ * on it at load time.
+ *
+ * The handles are named explicitly, like the updates cluster: they are
+ * enqueued during the controls' enqueue step, before the head prints, so a
+ * snapshot cannot tell them apart from the page's own scripts.
+ */
+function la_maybe_defer_customizer_media_assets() {
+	$defer_scripts = array();
+	foreach ( array( 'media-views', 'media-editor', 'media-audiovideo', 'mce-view', 'image-edit', 'moxiejs', 'plupload', 'wp-plupload', 'wp-mediaelement', 'mediaelement', 'mediaelement-core', 'mediaelement-migrate', 'imgareaselect' ) as $handle ) {
+		if ( wp_script_is( $handle, 'enqueued' ) ) {
+			$defer_scripts[] = $handle;
+		}
+	}
+
+	$defer_styles = array();
+	foreach ( array( 'media-views', 'mediaelement', 'wp-mediaelement' ) as $handle ) {
+		if ( wp_style_is( $handle, 'enqueued' ) ) {
+			$defer_styles[] = $handle;
+		}
+	}
+
+	if ( ! $defer_scripts && ! $defer_styles ) {
+		return;
+	}
+
+	/*
+	 * customize-views is enqueued up front and declares media-editor,
+	 * media-views and imgareaselect as dependencies, so WordPress would
+	 * print them in the head as its dependencies even after they are
+	 * dequeued here. customize-views.js never references wp.media or
+	 * imgareaselect (both are only used by the media modal and the image
+	 * cropper), so those dependencies are removed from its dependency list
+	 * instead. The media stack still reaches the page through the
+	 * template, in dependency order, when a media control is first used.
+	 */
+	$scripts = wp_scripts();
+	if ( isset( $scripts->registered['customize-views'] ) ) {
+		$scripts->registered['customize-views']->deps = array_values(
+			array_diff(
+				$scripts->registered['customize-views']->deps,
+				array( 'media-editor', 'media-views', 'imgareaselect' )
+			)
+		);
+	}
+
+	/*
+	 * media-models and wp-api-request stay up front on purpose. A media
+	 * control with a value already set fetches its attachment data through
+	 * wp.media.attachment() when the control is created
+	 * (customize-controls.js, MediaControl.ready), and that lives in
+	 * media-models; the fetch itself uses wp.apiRequest. Without an
+	 * explicit enqueue here, nothing up front would depend on them, so
+	 * they would be pulled into the template as media-views dependencies
+	 * instead and the control's ready() would throw.
+	 */
+	wp_enqueue_script( 'media-models' );
+	wp_enqueue_script( 'wp-api-request' );
+
+	$GLOBALS['la_deferred_customizer_media_scripts'] = $defer_scripts;
+	$GLOBALS['la_deferred_customizer_media_styles']  = $defer_styles;
+
+	foreach ( $defer_scripts as $handle ) {
+		wp_dequeue_script( $handle );
+	}
+	foreach ( $defer_styles as $handle ) {
+		wp_dequeue_style( $handle );
+	}
+
+	wp_register_script(
+		'la-customizer-media-loader',
+		plugins_url( 'assets/js/customizer-media-loader.js', __FILE__ ),
+		array( 'customize-controls' ),
+		LA_VERSION,
+		true
+	);
+	wp_enqueue_script( 'la-customizer-media-loader' );
+}
+
+/**
+ * Prints the Customizer's media stack into an inert template.
+ *
+ * The loader adds the template's contents to the page when a media control's
+ * button is first used. Nothing is printed when the media stack was never
+ * enqueued, for example on a Customizer screen without media controls.
+ */
+function la_print_customizer_media_assets_template() {
+	$scripts = $GLOBALS['la_deferred_customizer_media_scripts'] ?? array();
+	$styles  = $GLOBALS['la_deferred_customizer_media_styles'] ?? array();
+
+	if ( ! $scripts && ! $styles ) {
+		return;
+	}
+
+	ob_start();
+	wp_styles()->do_items( $styles );
+	wp_scripts()->do_items( $scripts );
+	$assets = ob_get_clean();
+
+	if ( '' === trim( $assets ) ) {
+		return;
+	}
+
+	printf( "<template id=\"la-customizer-media-assets\">\n%s</template>\n", $assets );
+}
+
+/**
  * Tells whether the current screen defers the update and install scripts.
  *
  * The Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens
@@ -984,4 +1164,248 @@ function la_print_mediaelement_assets_template() {
 	}
 
 	printf( "<template id=\"la-mediaelement-assets\">\n%s</template>\n", $assets );
+}
+
+/**
+ * Tells whether the current screen defers the comment Reply editor.
+ *
+ * Only the Dashboard and the Comments screen do today: they are the two
+ * screens that load quicktags and wplink up front for a reply form that
+ * only opens on click, and for the Quick Draft toolbar that only matters
+ * once the textarea is used. The post editor loads its own editor up
+ * front and is left alone.
+ *
+ * @return bool Whether the Reply editor is deferred on this screen.
+ */
+function la_screen_defers_reply_editor() {
+	/**
+	 * Filters the screens that load the comment Reply editor on demand.
+	 *
+	 * @param string[] $screens Screen IDs, as returned by get_current_screen()->id.
+	 */
+	$screens = apply_filters( 'la_defer_reply_editor_screens', array( 'dashboard', 'edit-comments' ) );
+	$screen  = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+	return $screen && in_array( $screen->id, (array) $screens, true );
+}
+
+/**
+ * Defers the comment Reply editor until a Reply button is used.
+ *
+ * quicktags and wplink load up front on the Dashboard and the Comments
+ * screen for a reply form that only opens on click. The editor's own
+ * footer init is guarded (class-wp-editor.php checks that quicktags is
+ * defined before calling it), and admin-comments.js only touches QTags
+ * behind the same guard, so deferring the scripts does not throw at page
+ * load; it just leaves the toolbar unwired. The loader runs the init
+ * itself after the scripts load. The handles are named explicitly, like
+ * the updates cluster, and the second pass in the footer catches anything
+ * enqueued while rendering.
+ */
+function la_maybe_defer_reply_editor_assets() {
+	if ( ! la_screen_defers_reply_editor() ) {
+		return;
+	}
+
+	$defer_scripts = array();
+	foreach ( array( 'quicktags', 'wplink' ) as $handle ) {
+		if ( wp_script_is( $handle, 'enqueued' ) ) {
+			$defer_scripts[] = $handle;
+		}
+	}
+
+	$defer_styles = array();
+	foreach ( array( 'editor' ) as $handle ) {
+		if ( wp_style_is( $handle, 'enqueued' ) ) {
+			$defer_styles[] = $handle;
+		}
+	}
+
+	if ( ! $defer_scripts && ! $defer_styles ) {
+		return;
+	}
+
+	/*
+	 * admin-comments is enqueued up front and declares quicktags as a
+	 * dependency, so WordPress would print it in the head as its
+	 * dependency even after it is dequeued here. edit-comments.js only
+	 * touches QTags behind a guard (if ( typeof QTags != 'undefined' )),
+	 * so that dependency is removed from its dependency list instead.
+	 * quicktags still reaches the page through the template, in
+	 * dependency order, when a Reply button is first used.
+	 */
+	$scripts = wp_scripts();
+	if ( isset( $scripts->registered['admin-comments'] ) ) {
+		$scripts->registered['admin-comments']->deps = array_values(
+			array_diff(
+				$scripts->registered['admin-comments']->deps,
+				array( 'quicktags' )
+			)
+		);
+	}
+
+	$GLOBALS['la_deferred_reply_editor_scripts'] = array_unique( array_merge( $GLOBALS['la_deferred_reply_editor_scripts'] ?? array(), $defer_scripts ) );
+	$GLOBALS['la_deferred_reply_editor_styles']  = array_unique( array_merge( $GLOBALS['la_deferred_reply_editor_styles'] ?? array(), $defer_styles ) );
+
+	foreach ( $defer_scripts as $handle ) {
+		wp_dequeue_script( $handle );
+	}
+	foreach ( $defer_styles as $handle ) {
+		wp_dequeue_style( $handle );
+	}
+
+	if ( ! wp_script_is( 'la-reply-editor-loader', 'enqueued' ) ) {
+		wp_register_script(
+			'la-reply-editor-loader',
+			plugins_url( 'assets/js/reply-editor-loader.js', __FILE__ ),
+			array( 'jquery' ),
+			LA_VERSION,
+			true
+		);
+		wp_enqueue_script( 'la-reply-editor-loader' );
+	}
+}
+
+/**
+ * Prints the comment Reply editor into an inert template.
+ *
+ * The loader adds the template's contents to the page when a Reply button
+ * is first used, and then runs the editor init the footer script would
+ * have run. Nothing is printed when the editor was never enqueued on the
+ * screen.
+ */
+function la_print_reply_editor_assets_template() {
+	$scripts = $GLOBALS['la_deferred_reply_editor_scripts'] ?? array();
+	$styles  = $GLOBALS['la_deferred_reply_editor_styles'] ?? array();
+
+	if ( ! $scripts && ! $styles ) {
+		return;
+	}
+
+	ob_start();
+	wp_styles()->do_items( $styles );
+	wp_scripts()->do_items( $scripts );
+	$assets = ob_get_clean();
+
+	if ( '' === trim( $assets ) ) {
+		return;
+	}
+
+	printf( "<template id=\"la-reply-editor-assets\">\n%s</template>\n", $assets );
+}
+
+/**
+ * Tells whether the current screen defers Quick Edit.
+ *
+ * Only the Posts and Pages lists do today: they are the screens that load
+ * inline-edit-post.js and its tag-suggestion scripts up front for a Quick
+ * Edit link that is only used on click. Other list tables that load those
+ * scripts need them where they are.
+ *
+ * @return bool Whether Quick Edit is deferred on this screen.
+ */
+function la_screen_defers_quick_edit() {
+	/**
+	 * Filters the screens that load Quick Edit on demand.
+	 *
+	 * @param string[] $screens Screen IDs, as returned by get_current_screen()->id.
+	 */
+	$screens = apply_filters( 'la_defer_quick_edit_screens', array( 'edit-post', 'edit-page' ) );
+	$screen  = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+	return $screen && in_array( $screen->id, (array) $screens, true );
+}
+
+/**
+ * Defers Quick Edit until a Quick Edit link is used or Bulk Edit is applied.
+ *
+ * inline-edit-post.js, tags-suggest.js and jquery-ui-autocomplete load up
+ * front on the Posts and Pages lists for a Quick Edit link that is only
+ * used on click. Nothing else on the page uses those three scripts; the
+ * list table itself is server-rendered. The loader adds them when a Quick
+ * Edit link is first clicked, or when Bulk Edit is applied with the Edit
+ * bulk action. inline-edit-post.js initializes itself in a jQuery
+ * DOM-ready callback, which fires as soon as the script loads, so its
+ * setup runs before the re-dispatched click opens the editor.
+ */
+function la_maybe_defer_quick_edit_assets() {
+	if ( ! la_screen_defers_quick_edit() ) {
+		return;
+	}
+
+	$defer_scripts = array();
+	foreach ( array( 'inline-edit-post', 'tags-suggest', 'jquery-ui-autocomplete' ) as $handle ) {
+		if ( wp_script_is( $handle, 'enqueued' ) ) {
+			$defer_scripts[] = $handle;
+		}
+	}
+
+	if ( ! $defer_scripts ) {
+		return;
+	}
+
+	$GLOBALS['la_deferred_quick_edit_scripts'] = array_unique( array_merge( $GLOBALS['la_deferred_quick_edit_scripts'] ?? array(), $defer_scripts ) );
+
+	foreach ( $defer_scripts as $handle ) {
+		wp_dequeue_script( $handle );
+	}
+
+	if ( ! wp_script_is( 'la-quick-edit-loader', 'enqueued' ) ) {
+		wp_register_script(
+			'la-quick-edit-loader',
+			plugins_url( 'assets/js/quick-edit-loader.js', __FILE__ ),
+			array( 'jquery' ),
+			LA_VERSION,
+			true
+		);
+		wp_enqueue_script( 'la-quick-edit-loader' );
+	}
+}
+
+/**
+ * Prints Quick Edit into an inert template.
+ *
+ * The loader adds the template's contents to the page when a Quick Edit
+ * link is first clicked, or when Bulk Edit is applied with the Edit bulk
+ * action. Nothing is printed when Quick Edit was never enqueued on the
+ * screen.
+ */
+function la_print_quick_edit_assets_template() {
+	$scripts = $GLOBALS['la_deferred_quick_edit_scripts'] ?? array();
+
+	if ( ! $scripts ) {
+		return;
+	}
+
+	ob_start();
+	wp_scripts()->do_items( $scripts );
+	$assets = ob_get_clean();
+
+	if ( '' === trim( $assets ) ) {
+		return;
+	}
+
+	printf( "<template id=\"la-quick-edit-assets\">\n%s</template>\n", $assets );
+}
+
+/**
+ * Drops the user profile scripts from Writing Settings.
+ *
+ * options-writing.php enqueues user-profile (and with it
+ * password-strength-meter) even though the page has no profile or password
+ * field anywhere; it looks like a leftover in core. Nothing on the page
+ * uses either script, so they are simply not enqueued there. On
+ * profile.php the same scripts are legitimately needed and are left
+ * alone. There is no loader and no template: the scripts are never used
+ * on this screen.
+ */
+function la_maybe_drop_writing_profile_assets() {
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+	if ( ! $screen || 'options-writing' !== $screen->id ) {
+		return;
+	}
+
+	wp_dequeue_script( 'user-profile' );
+	wp_dequeue_script( 'password-strength-meter' );
 }
