@@ -4,11 +4,11 @@ Tags: admin, performance, command palette, javascript
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Loads the Command Palette, the media modal, the Customizer's code editor, the plugin update and install scripts, and the media library's audio and video player only when you open them, so classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, six screens skip the update and install scripts until an update, install or details button is used, the media library skips the audio and video player until an audio or video attachment opens, the Customizer skips the media modal scripts until a media control is used, the Dashboard and Comments screen skip the reply editor until a Reply button is used, the Posts and Pages lists skip Quick Edit until a Quick Edit link is used, and Writing Settings no longer loads the user profile scripts it never uses.
+Loads the Command Palette, the media modal, the Customizer's code editor, the plugin update and install scripts, and the media library's audio and video player only when you open them, and trims the admin CSS bundle to the stylesheets each screen uses, so classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, six screens skip the update and install scripts until an update, install or details button is used, the media library skips the audio and video player until an audio or video attachment opens, the Customizer skips the media modal scripts until a media control is used, the Dashboard and Comments screen skip the reply editor until a Reply button is used, the Posts and Pages lists skip Quick Edit until a Quick Edit link is used, Writing Settings no longer loads the user profile scripts it never uses, and every admin screen loads a smaller shared stylesheet instead of one stylesheet per screen it never shows.
 
 == Description ==
 
@@ -35,6 +35,8 @@ The same trick is applied a seventh time to the comment Reply editor on the Dash
 The same trick is applied an eighth time to Quick Edit on the Posts and Pages lists. Those screens load the inline editor and its tag-suggestion scripts, about 20 KB, for a Quick Edit link that is only used on click, and for Bulk Edit. This plugin holds them back until a Quick Edit link is first clicked, or Bulk Edit is applied with the Edit bulk action, then loads them and opens the editor. Like the other deferrals, this runs on every version.
 
 And a ninth, smaller fix: Writing Settings loads the user profile scripts, about 9 KB, for no reason. That screen has no profile or password field anywhere, so the plugin simply stops loading them there. On the profile page the same scripts are legitimately needed and are left alone.
+
+And a tenth: the admin CSS bundle. WordPress concatenates every admin stylesheet into one load-styles.php request, and the list comes from the wp-admin umbrella handle, which pulls in one stylesheet per screen on every admin page. Most screens load stylesheets for screens they never show. This plugin removes the per-screen stylesheets from the umbrella and re-enqueues each one only on the screen that needs it, so the shared bundle shrinks from about 426 KB to about 251 KB. The shared URL stays shared: the screens that share it, the Posts and Pages lists, Comments, Users, Plugins, Tools, Export, Import and the settings screens, all strip the same set, so they keep one cache entry. The list-tables stylesheet stays in the bundle everywhere, since it is what holds that shared URL together; it goes only on the post editor and the Customizer, which have their own URL and do not use it. A plugin that enqueues a style depending on a trimmed stylesheet gets it back through the dependency walk at print time, so plugin UIs that genuinely need one of these stylesheets keep working.
 
 There are no settings. Activate it and every classic admin screen gets faster.
 
@@ -84,11 +86,18 @@ Yes. Click Reply on the Dashboard or the Comments screen and the reply form open
 
 Yes. Click Quick Edit on the Posts or Pages list and the inline editor opens as before. The first click loads the editor's scripts first, so it takes a moment longer; after that it opens instantly. Bulk Edit with the Edit action works the same way.
 
+= Does the admin still look the same? =
+
+Yes. The CSS trim only removes stylesheets for screens you are not on: the Dashboard keeps its own stylesheet, the post editor keeps the editor stylesheet, the media library keeps the media stylesheet, and so on. Nothing visible changes. A plugin that needs one of the trimmed stylesheets gets it back automatically.
+
 = How much faster is it? =
 
 Measured on WordPress 7.2-beta4 (see the article this plugin is based on): Settings > General went from 80 scripts to 39, the Dashboard after login from 6.7 MB downloaded to 1.4 MB, and DOMContentLoaded on the Dashboard from 282 ms to 155 ms (696 ms to 226 ms on a 4x slower CPU). Your numbers will vary, but the scripts that are gone are gone on every classic admin screen.
 
 == Changelog ==
+
+= 1.6.0 =
+* Trims the admin CSS bundle: the per-screen stylesheets (dashboard, edit, media, themes, about, nav-menus, widgets, revisions) are removed from the shared load-styles.php bundle and re-enqueued only on the screens that need them. The shared bundle shrinks from about 426 KB to about 251 KB, and the screens that share it keep one cache entry. list-tables stays in the bundle, since it is what holds the shared URL together; it goes only on the post editor and the Customizer, which have their own URL and do not use it. This runs on every version.
 
 = 1.5.0 =
 * Loads the Customizer's media modal stack on demand: the media views, uploader, image editor and audio and video player wait until a media control's button is first used. The attachment models stay up front so a control with a value already set still loads its thumbnail. This runs on every version.

@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Lazy Admin
  * Plugin URI:        https://github.com/jdevalk/lazy-admin
- * Description:       Loads the Command Palette, the media modal, the Customizer's code editor, the update and plugin install scripts, and the media library's audio and video player only when you open them. Classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, the Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens skip the update and install scripts until one of their buttons is used, the media library skips the audio and video player until an audio or video attachment is opened, the Customizer skips the media modal scripts until a media control is used, the Dashboard and Comments screen skip the reply editor until a Reply button is used, the Posts and Pages lists skip Quick Edit until a Quick Edit link is used, and Writing Settings no longer loads the user profile scripts it never uses, so they load noticeably faster.
- * Version:           1.5.0
+ * Description:       Loads the Command Palette, the media modal, the Customizer's code editor, the update and plugin install scripts, and the media library's audio and video player only when you open them, and trims the admin CSS bundle to the stylesheets each screen uses. Classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, the Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens skip the update and install scripts until one of their buttons is used, the media library skips the audio and video player until an audio or video attachment is opened, the Customizer skips the media modal scripts until a media control is used, the Dashboard and Comments screen skip the reply editor until a Reply button is used, the Posts and Pages lists skip Quick Edit until a Quick Edit link is used, Writing Settings no longer loads the user profile scripts it never uses, and every admin screen loads a smaller shared stylesheet instead of one stylesheet per screen it never shows, so they load noticeably faster.
+ * Version:           1.6.0
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Tested up to:      7.1
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LA_VERSION', '1.5.0' );
+define( 'LA_VERSION', '1.6.0' );
 
 add_action( 'init', 'la_init' );
 
@@ -169,6 +169,29 @@ function la_init() {
 	 * the head prints.
 	 */
 	add_action( 'admin_print_scripts', 'la_maybe_drop_writing_profile_assets', 1 );
+
+	/*
+	 * The admin CSS bundle is the same shape of win, but the fix is
+	 * different: WordPress concatenates every admin stylesheet into one
+	 * load-styles.php request, and the list comes from the wp-admin
+	 * umbrella handle, which pulls in 17 styles on every admin page: the
+	 * base styles every screen needs, plus one stylesheet per screen
+	 * (dashboard, edit, media, themes, about, nav-menus, widgets,
+	 * revisions). Most screens load stylesheets for screens they never
+	 * show. The bundle is cached for a year and the URL is identical
+	 * across the screens that share it, so the trim must not split that
+	 * shared URL: a handle is removed from the umbrella only when no
+	 * screen sharing the URL uses it, and it is re-enqueued on the
+	 * screens that do need it, so those screens keep their own URL.
+	 * list-tables stays in the bundle everywhere: it is what the list
+	 * screens share, and removing it from only some of them would split
+	 * the URL. The editor and the Customizer have their own URL and do
+	 * not use it, so it goes there too. This runs on every version.
+	 * customize.php never fires admin_enqueue_scripts, so the trim hooks
+	 * customize_controls_enqueue_scripts there as well.
+	 */
+	add_action( 'admin_enqueue_scripts', 'la_maybe_trim_admin_css', 1000 );
+	add_action( 'customize_controls_enqueue_scripts', 'la_maybe_trim_admin_css', 1000 );
 }
 
 /**
@@ -1408,4 +1431,119 @@ function la_maybe_drop_writing_profile_assets() {
 
 	wp_dequeue_script( 'user-profile' );
 	wp_dequeue_script( 'password-strength-meter' );
+}
+
+/**
+ * Stylesheets removed from the wp-admin umbrella on every admin screen.
+ *
+ * The wp-admin handle exists only to pull these in: it has no file of its
+ * own, just the dependency list. Each of these is one screen's stylesheet,
+ * used only on that screen (or on screens that already have their own
+ * stylesheet URL). The base styles every screen needs, dashicons, common,
+ * forms, admin-menu, site-icon, l10n, are not in this list and stay.
+ *
+ * @return string[] Style handles to remove from the umbrella.
+ */
+function la_trim_css_handles() {
+	return apply_filters(
+		'la_trim_css_handles',
+		array(
+			'dashboard',
+			'edit',
+			'media',
+			'themes',
+			'about',
+			'nav-menus',
+			'widgets',
+			'revisions',
+		)
+	);
+}
+
+/**
+ * Screens that need one of the trimmed stylesheets, and which ones.
+ *
+ * The handle is enqueued directly on that screen, so it lands in that
+ * screen's stylesheet URL and nowhere else. The Customizer needs three:
+ * its Menus panel uses the nav-menus stylesheet, its Widgets panel uses
+ * the widgets stylesheet, and its theme panel uses the themes stylesheet.
+ * Settings > General needs the media stylesheet for the Site Icon
+ * picker's modal close button; the other settings screens do not.
+ *
+ * @return array<string, string[]> Screen id => style handles to re-enqueue.
+ */
+function la_trim_css_reenqueue_map() {
+	return apply_filters(
+		'la_trim_css_reenqueue',
+		array(
+			'dashboard'       => array( 'dashboard' ),
+			'upload'          => array( 'media' ),
+			'themes'          => array( 'themes' ),
+			'theme-install'   => array( 'themes' ),
+			'about'           => array( 'about' ),
+			'revision'        => array( 'revisions' ),
+			'nav-menus'       => array( 'nav-menus' ),
+			'widgets'         => array( 'widgets' ),
+			'options-general' => array( 'media' ),
+			'customize'       => array( 'nav-menus', 'widgets', 'themes' ),
+		)
+	);
+}
+
+/**
+ * Trims the admin CSS bundle by removing per-screen stylesheets from the
+ * wp-admin umbrella, and re-enqueues the ones the current screen needs.
+ *
+ * The umbrella's dependency list is what load-styles.php concatenates, so
+ * removing a handle there removes it from the bundle. The removal happens
+ * at the end of the enqueue hook, before the head prints, so the
+ * dependency walk at print time only sees what is left. A plugin that
+ * enqueues a style depending on a trimmed handle gets it back through
+ * that same walk, so plugin UIs that genuinely need one of these
+ * stylesheets keep working.
+ *
+ * list-tables is not in the trimmed list: the list screens share one
+ * stylesheet URL, and it is the list-table stylesheet that holds that
+ * URL together. It is removed only on the post editor and the Customizer,
+ * which have their own URL and do not use it.
+ */
+function la_maybe_trim_admin_css() {
+	if ( ! apply_filters( 'la_trim_css', true ) ) {
+		return;
+	}
+
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+	if ( ! $screen ) {
+		return;
+	}
+
+	global $wp_styles;
+
+	if ( ! isset( $wp_styles->registered['wp-admin'] ) ) {
+		return;
+	}
+
+	$strip = la_trim_css_handles();
+
+	if ( 'post' === $screen->base || 'customize' === $screen->id ) {
+		$strip[] = 'list-tables';
+	}
+
+	$wp_styles->registered['wp-admin']->deps = array_values(
+		array_diff( $wp_styles->registered['wp-admin']->deps, $strip )
+	);
+
+	$reenqueue = la_trim_css_reenqueue_map();
+	$keep      = isset( $reenqueue[ $screen->id ] ) ? $reenqueue[ $screen->id ] : array();
+
+	if ( 'post' === $screen->base ) {
+		$keep = array_merge( $keep, array( 'edit', 'media' ) );
+	}
+
+	foreach ( array_unique( $keep ) as $handle ) {
+		if ( wp_style_is( $handle, 'registered' ) ) {
+			wp_enqueue_style( $handle );
+		}
+	}
 }

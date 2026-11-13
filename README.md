@@ -1,6 +1,6 @@
 # Lazy Admin
 
-WordPress loads a lot of JavaScript in wp-admin that you only need some of the time. This plugin holds it back until you actually use the feature it belongs to, so admin screens load faster and with less to parse. There are no settings. Activate it and every classic admin screen gets faster.
+WordPress loads a lot of JavaScript in wp-admin that you only need some of the time. This plugin holds it back until you actually use the feature it belongs to, so admin screens load faster and with less to parse. It also trims the admin CSS bundle to the stylesheets each screen uses, instead of one stylesheet per screen you never visit. There are no settings. Activate it and every classic admin screen gets faster.
 
 ## What it defers
 
@@ -15,8 +15,9 @@ WordPress loads a lot of JavaScript in wp-admin that you only need some of the t
 | Reply editor | Dashboard, Comments | A Reply button is used | About 50 KB |
 | Quick Edit | Posts and Pages lists | A Quick Edit link is clicked, or Bulk Edit with Edit | About 20 KB |
 | User profile scripts | Writing Settings | Never; the page has no profile or password field, so they are not loaded there at all | About 9 KB |
+| Admin CSS bundle | Every admin screen | Always; the per-screen stylesheets are removed from the shared bundle and re-enqueued only on the screen that needs them | About 175 KB of the shared bundle |
 
-Everything still works exactly as before. The first use loads the scripts first, so it takes a moment longer; after that it works instantly. If you never use a feature, its scripts never load.
+Everything still works exactly as before. The first use loads the scripts first, so it takes a moment longer; after that it works instantly. If you never use a feature, its scripts never load. The admin still looks the same: the CSS trim only removes stylesheets for screens you are not on.
 
 ## How it works
 
@@ -26,6 +27,7 @@ Two details are worth knowing:
 
 - The Command Palette part is the patch from [Trac #66642](https://core.trac.wordpress.org/ticket/66642) ([PR #15871](https://github.com/WordPress/wordpress-develop/pull/15871)), packaged for WordPress 6.9 to 7.2. WordPress 7.3 loads the palette on demand itself, so on 7.3 and later that part does nothing. Every other deferral runs on every version.
 - The post editor and the site editor load these scripts anyway, so they keep everything up front, unchanged. Plugins that add their own palette commands get the same `enqueue_command_palette_assets` action WordPress 7.3 fires, so their commands load together with the palette.
+- The CSS trim works differently from the script deferrals, because the bundle is cached for a year and the URL is identical across the screens that share it. A handle is removed from the `wp-admin` umbrella only when no screen sharing the URL uses it, and it is re-enqueued on the screens that do need it, so those screens keep their own URL. The list-tables stylesheet stays in the bundle, since it is what holds the shared URL together; it goes only on the post editor and the Customizer, which have their own URL and do not use it. A plugin that enqueues a style depending on a trimmed stylesheet gets it back through the dependency walk at print time.
 
 ## Numbers
 
@@ -51,6 +53,8 @@ Measured on this plugin (WordPress 7.1.4, executed scripts per screen):
 | Media library | 34 | 32 |
 | Post editor | 96 | 96 (unchanged) |
 
+The shared admin stylesheet (the load-styles.php bundle the Posts list, Comments, Users, Plugins, Tools, Export, Import and settings screens all share) went from about 426 KB to about 251 KB minified, about 103 KB to about 70 KB gzipped. The Dashboard's bundle went from 431 KB to 272 KB.
+
 ## Development
 
 No build step. The loader in `assets/js/command-palette-loader.js` is copied verbatim from the core patch; the PHP mirrors `wp_enqueue_command_palette_loader()` and `wp_print_command_palette_assets_template()` from WordPress 7.3. Each other loader follows the same pattern for its feature:
@@ -62,5 +66,7 @@ No build step. The loader in `assets/js/command-palette-loader.js` is copied ver
 - `customizer-media-loader.js` for the Customizer's media modal, stripping the media stack from the Customizer views dependency chain and keeping the attachment models up front so a control with a value already set still loads its thumbnail.
 - `reply-editor-loader.js` for the comment reply editor, running the editor init the footer script would have run once the scripts load.
 - `quick-edit-loader.js` for the inline editor, waiting for its jQuery ready setup before the re-dispatched click opens the editor.
+
+The CSS trim needs no loader: the per-screen stylesheets are removed from the `wp-admin` umbrella's dependency list, and re-enqueued directly on the screens that need them.
 
 The Writing Settings fix needs no loader: the two scripts are simply not enqueued there.
