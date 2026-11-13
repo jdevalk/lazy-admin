@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name:       Lazy Command Palette
- * Plugin URI:        https://github.com/jdevalk/lazy-command-palette
+ * Plugin Name:       Lazy Admin
+ * Plugin URI:        https://github.com/jdevalk/lazy-admin
  * Description:       Loads the Command Palette and the media modal only when you open them. Classic admin screens skip the ~40 block editor scripts the palette needs, and Settings > General skips the media library scripts the Site Icon picker needs, so they load noticeably faster.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Tested up to:      7.1
@@ -11,24 +11,24 @@
  * Author URI:        https://joost.blog
  * License:           GPLv2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       lazy-command-palette
+ * Text Domain:       lazy-admin
  *
- * @package Lazy_Command_Palette
+ * @package Lazy_Admin
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LCP_VERSION', '1.1.0' );
+define( 'LA_VERSION', '1.2.0' );
 
-add_action( 'init', 'lcp_init' );
+add_action( 'init', 'la_init' );
 
 /**
  * Replaces up-front loading with loading on demand, for the Command Palette and
  * for the media modal.
  */
-function lcp_init() {
+function la_init() {
 	/*
 	 * The Command Palette only loads its scripts up front on every admin screen
 	 * since WordPress 6.9, and WordPress 7.3 loads it on demand itself
@@ -41,8 +41,8 @@ function lcp_init() {
 			remove_action( 'admin_enqueue_scripts', 'wp_enqueue_command_palette_assets', $priority );
 		}
 
-		add_action( 'admin_enqueue_scripts', 'lcp_enqueue_command_palette_loader', 10 );
-		add_action( 'admin_print_footer_scripts', 'lcp_print_command_palette_assets_template', 20 );
+		add_action( 'admin_enqueue_scripts', 'la_enqueue_command_palette_loader', 10 );
+		add_action( 'admin_print_footer_scripts', 'la_print_command_palette_assets_template', 20 );
 
 		/*
 		 * Core's toolbar button only shows when wp-core-commands is enqueued up front,
@@ -50,14 +50,14 @@ function lcp_init() {
 		 * when the admin bar menu runs; core registers its button during
 		 * WP_Admin_Bar::initialize(), so this runs before it, at priority 0.
 		 */
-		add_action( 'admin_bar_menu', 'lcp_replace_admin_bar_command_palette_menu', 0 );
+		add_action( 'admin_bar_menu', 'la_replace_admin_bar_command_palette_menu', 0 );
 
 		/*
 		 * On WordPress 7.2 and later the login screen prefetches the admin's scripts,
 		 * including the palette's. Keep those out of the prefetch; the filter does not
 		 * exist before 7.2, so this is a no-op there.
 		 */
-		add_filter( 'wp_prefetch_admin_assets', 'lcp_filter_prefetch_admin_assets', 10, 2 );
+		add_filter( 'wp_prefetch_admin_assets', 'la_filter_prefetch_admin_assets', 10, 2 );
 	}
 
 	/*
@@ -66,9 +66,9 @@ function lcp_init() {
 	 * never defers it, on any version. Unlike the palette part above, this runs
 	 * on 7.3 and later too.
 	 */
-	add_action( 'admin_enqueue_scripts', 'lcp_snapshot_admin_queues', 1000 );
-	add_action( 'admin_footer', 'lcp_maybe_defer_media_assets', 9 );
-	add_action( 'admin_print_footer_scripts', 'lcp_print_media_assets_template', 21 );
+	add_action( 'admin_enqueue_scripts', 'la_snapshot_admin_queues', 1000 );
+	add_action( 'admin_footer', 'la_maybe_defer_media_assets', 9 );
+	add_action( 'admin_print_footer_scripts', 'la_print_media_assets_template', 21 );
 }
 
 /**
@@ -79,14 +79,14 @@ function lcp_init() {
  * but only the 1.4 KB loader is enqueued. The loader adds the palette's scripts and
  * styles to the page when the palette is first opened, with the keyboard shortcut or
  * the toolbar button, so that they do not hold back every admin screen. Until then
- * they wait in the template printed by lcp_print_command_palette_assets_template().
+ * they wait in the template printed by la_print_command_palette_assets_template().
  * A screen that already loads the commands package, such as the block editor, gets
  * the rest of the palette up front instead.
  *
  * @global array $menu
  * @global array $submenu
  */
-function lcp_enqueue_command_palette_loader() {
+function la_enqueue_command_palette_loader() {
 	global $menu, $submenu;
 
 	$command_palette_settings = array(
@@ -201,7 +201,7 @@ function lcp_enqueue_command_palette_loader() {
 		'wp-command-palette-loader',
 		plugins_url( 'assets/js/command-palette-loader.js', __FILE__ ),
 		array(),
-		LCP_VERSION,
+		LA_VERSION,
 		true
 	);
 	wp_enqueue_script( 'wp-command-palette-loader' );
@@ -238,10 +238,10 @@ function lcp_enqueue_command_palette_loader() {
  * (Trac #66642). The template holds what the palette needs and the page has not
  * printed yet, including the scripts and styles enqueued on the
  * {@see 'enqueue_command_palette_assets'} action. The script enqueued by
- * lcp_enqueue_command_palette_loader() adds it to the page when the palette is
+ * la_enqueue_command_palette_loader() adds it to the page when the palette is
  * first opened. Nothing is printed when the palette is already on the page.
  */
-function lcp_print_command_palette_assets_template() {
+function la_print_command_palette_assets_template() {
 	if ( ! wp_script_is( 'wp-command-palette-loader', 'done' ) || wp_script_is( 'wp-core-commands', 'done' ) ) {
 		return;
 	}
@@ -251,7 +251,7 @@ function lcp_print_command_palette_assets_template() {
 	$scripts_queued_by_page = $scripts->queue;
 	$styles_queued_by_page  = $styles->queue;
 
-	/** This action is documented in lcp_enqueue_command_palette_loader(). */
+	/** This action is documented in la_enqueue_command_palette_loader(). */
 	do_action( 'enqueue_command_palette_assets' );
 
 	$palette_scripts = array_merge( array( 'wp-core-commands' ), array_diff( $scripts->queue, $scripts_queued_by_page ) );
@@ -273,14 +273,14 @@ function lcp_print_command_palette_assets_template() {
  * be added. The button is the same, except it opens the palette through the loader
  * instead of an inline handler that needs wp-data on the page.
  */
-function lcp_replace_admin_bar_command_palette_menu() {
+function la_replace_admin_bar_command_palette_menu() {
 	$priority = has_action( 'admin_bar_menu', 'wp_admin_bar_command_palette_menu' );
 	if ( false === $priority ) {
 		return;
 	}
 
 	remove_action( 'admin_bar_menu', 'wp_admin_bar_command_palette_menu', $priority );
-	add_action( 'admin_bar_menu', 'lcp_admin_bar_command_palette_menu', $priority );
+	add_action( 'admin_bar_menu', 'la_admin_bar_command_palette_menu', $priority );
 }
 
 /**
@@ -294,7 +294,7 @@ function lcp_replace_admin_bar_command_palette_menu() {
  *
  * @param WP_Admin_Bar $wp_admin_bar The WP_Admin_Bar instance.
  */
-function lcp_admin_bar_command_palette_menu( WP_Admin_Bar $wp_admin_bar ): void {
+function la_admin_bar_command_palette_menu( WP_Admin_Bar $wp_admin_bar ): void {
 	if ( ! is_admin() || ! wp_script_is( 'wp-command-palette-loader', 'enqueued' ) ) {
 		return;
 	}
@@ -363,12 +363,12 @@ function lcp_admin_bar_command_palette_menu( WP_Admin_Bar $wp_admin_bar ): void 
  * @param string $next_screen URL of the screen the assets are being prefetched for.
  * @return array Resources without the palette's scripts and styles, where applicable.
  */
-function lcp_filter_prefetch_admin_assets( $resources, $next_screen ) {
-	if ( ! is_array( $resources ) || lcp_is_editor_screen_url( $next_screen ) ) {
+function la_filter_prefetch_admin_assets( $resources, $next_screen ) {
+	if ( ! is_array( $resources ) || la_is_editor_screen_url( $next_screen ) ) {
 		return $resources;
 	}
 
-	$palette_paths = lcp_command_palette_asset_paths();
+	$palette_paths = la_command_palette_asset_paths();
 	if ( ! $palette_paths ) {
 		return $resources;
 	}
@@ -401,7 +401,7 @@ function lcp_filter_prefetch_admin_assets( $resources, $next_screen ) {
  * @param string $url URL to check. May be relative.
  * @return bool Whether the URL is the post editor, the site editor, or the customizer.
  */
-function lcp_is_editor_screen_url( $url ) {
+function la_is_editor_screen_url( $url ) {
 	$path = (string) wp_parse_url( (string) $url, PHP_URL_PATH );
 	$base = basename( $path );
 
@@ -416,7 +416,7 @@ function lcp_is_editor_screen_url( $url ) {
  *
  * @return string[] URL paths, without query strings.
  */
-function lcp_command_palette_asset_paths() {
+function la_command_palette_asset_paths() {
 	$paths = array();
 
 	$scripts = wp_scripts();
@@ -450,11 +450,11 @@ function lcp_command_palette_asset_paths() {
  * This runs last on admin_enqueue_scripts, before the page body is rendered.
  * Anything enqueued after this point, such as the media stack that
  * options-general.php loads while rendering the Site Icon setting, is new,
- * and lcp_maybe_defer_media_assets() can tell it apart from the page's own.
+ * and la_maybe_defer_media_assets() can tell it apart from the page's own.
  */
-function lcp_snapshot_admin_queues() {
-	$GLOBALS['lcp_queued_scripts'] = wp_scripts()->queue;
-	$GLOBALS['lcp_queued_styles']  = wp_styles()->queue;
+function la_snapshot_admin_queues() {
+	$GLOBALS['la_queued_scripts'] = wp_scripts()->queue;
+	$GLOBALS['la_queued_styles']  = wp_styles()->queue;
 }
 
 /**
@@ -468,7 +468,7 @@ function lcp_snapshot_admin_queues() {
  * @param string[]        $roots        Handles to start from.
  * @return string[] The roots and their dependencies, each listed once.
  */
-function lcp_dependency_closure( $dependencies, $roots ) {
+function la_dependency_closure( $dependencies, $roots ) {
 	$closure = array();
 
 	$walk = static function ( $handles ) use ( &$walk, $dependencies, &$closure ) {
@@ -496,13 +496,13 @@ function lcp_dependency_closure( $dependencies, $roots ) {
  *
  * @return bool Whether the media modal is deferred on this screen.
  */
-function lcp_screen_defers_media() {
+function la_screen_defers_media() {
 	/**
 	 * Filters the screens that load the media modal on demand.
 	 *
 	 * @param string[] $screens Screen IDs, as returned by get_current_screen()->id.
 	 */
-	$screens = apply_filters( 'lcp_defer_media_screens', array( 'options-general' ) );
+	$screens = apply_filters( 'la_defer_media_screens', array( 'options-general' ) );
 	$screen  = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 
 	return $screen && in_array( $screen->id, (array) $screens, true );
@@ -517,14 +517,14 @@ function lcp_screen_defers_media() {
  * media stack, are deferred; a handle another script on the page still needs
  * prints normally, because WordPress resolves it as that script's dependency.
  * The deferred assets wait in the template printed by
- * lcp_print_media_assets_template(), and the loader enqueued here adds them to
+ * la_print_media_assets_template(), and the loader enqueued here adds them to
  * the page when the Site Icon button is clicked. Core's site-icon.js is left
  * exactly as it is, so its translations and its remove-button behavior are
  * untouched; the loader intercepts the click, loads the assets, and then lets
  * the click through to it.
  */
-function lcp_maybe_defer_media_assets() {
-	if ( ! lcp_screen_defers_media() ) {
+function la_maybe_defer_media_assets() {
+	if ( ! la_screen_defers_media() ) {
 		return;
 	}
 
@@ -534,27 +534,27 @@ function lcp_maybe_defer_media_assets() {
 	 */
 	if ( has_action( 'admin_footer', 'wp_print_media_templates' ) ) {
 		remove_action( 'admin_footer', 'wp_print_media_templates' );
-		$GLOBALS['lcp_defer_media_templates'] = true;
+		$GLOBALS['la_defer_media_templates'] = true;
 	}
 
 	$scripts = wp_scripts();
 	$styles  = wp_styles();
 
-	$new_scripts = array_diff( $scripts->queue, $GLOBALS['lcp_queued_scripts'] ?? array() );
-	$new_styles  = array_diff( $styles->queue, $GLOBALS['lcp_queued_styles'] ?? array() );
+	$new_scripts = array_diff( $scripts->queue, $GLOBALS['la_queued_scripts'] ?? array() );
+	$new_styles  = array_diff( $styles->queue, $GLOBALS['la_queued_styles'] ?? array() );
 
-	$media_scripts = lcp_dependency_closure( $scripts, array( 'media-editor', 'media-audiovideo', 'mce-view', 'image-edit', 'plupload', 'wp-plupload' ) );
-	$media_styles  = lcp_dependency_closure( $styles, array( 'media-views', 'imgareaselect', 'wp-mediaelement' ) );
+	$media_scripts = la_dependency_closure( $scripts, array( 'media-editor', 'media-audiovideo', 'mce-view', 'image-edit', 'plupload', 'wp-plupload' ) );
+	$media_styles  = la_dependency_closure( $styles, array( 'media-views', 'imgareaselect', 'wp-mediaelement' ) );
 
 	$defer_scripts = array_values( array_intersect( $new_scripts, $media_scripts ) );
 	$defer_styles  = array_values( array_intersect( $new_styles, $media_styles ) );
 
-	if ( ! $defer_scripts && ! $defer_styles && empty( $GLOBALS['lcp_defer_media_templates'] ) ) {
+	if ( ! $defer_scripts && ! $defer_styles && empty( $GLOBALS['la_defer_media_templates'] ) ) {
 		return;
 	}
 
-	$GLOBALS['lcp_deferred_media_scripts'] = $defer_scripts;
-	$GLOBALS['lcp_deferred_media_styles']  = $defer_styles;
+	$GLOBALS['la_deferred_media_scripts'] = $defer_scripts;
+	$GLOBALS['la_deferred_media_styles']  = $defer_styles;
 
 	foreach ( $defer_scripts as $handle ) {
 		wp_dequeue_script( $handle );
@@ -564,13 +564,13 @@ function lcp_maybe_defer_media_assets() {
 	}
 
 	wp_register_script(
-		'lcp-media-loader',
+		'la-media-loader',
 		plugins_url( 'assets/js/media-loader.js', __FILE__ ),
 		array(),
-		LCP_VERSION,
+		LA_VERSION,
 		true
 	);
-	wp_enqueue_script( 'lcp-media-loader' );
+	wp_enqueue_script( 'la-media-loader' );
 }
 
 /**
@@ -580,10 +580,10 @@ function lcp_maybe_defer_media_assets() {
  * is clicked. Nothing is printed when the modal is already on the page, or when
  * there was nothing to defer.
  */
-function lcp_print_media_assets_template() {
-	$scripts   = $GLOBALS['lcp_deferred_media_scripts'] ?? array();
-	$styles    = $GLOBALS['lcp_deferred_media_styles'] ?? array();
-	$templates = ! empty( $GLOBALS['lcp_defer_media_templates'] );
+function la_print_media_assets_template() {
+	$scripts   = $GLOBALS['la_deferred_media_scripts'] ?? array();
+	$styles    = $GLOBALS['la_deferred_media_styles'] ?? array();
+	$templates = ! empty( $GLOBALS['la_defer_media_templates'] );
 
 	if ( ! $scripts && ! $styles && ! $templates ) {
 		return;
@@ -601,5 +601,5 @@ function lcp_print_media_assets_template() {
 		return;
 	}
 
-	printf( "<template id=\"lcp-media-assets\">\n%s</template>\n", $assets );
+	printf( "<template id=\"la-media-assets\">\n%s</template>\n", $assets );
 }

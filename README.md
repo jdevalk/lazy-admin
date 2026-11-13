@@ -1,4 +1,4 @@
-# Lazy Command Palette
+# Lazy Admin
 
 Loads the WordPress Command Palette and the media modal only when you open them, so classic admin screens skip the ~40 block editor scripts the palette needs, and Settings > General skips the media library scripts the Site Icon picker needs.
 

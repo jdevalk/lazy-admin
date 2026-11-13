@@ -1,10 +1,10 @@
-=== Lazy Command Palette ===
+=== Lazy Admin ===
 Contributors: joostdevalk
 Tags: admin, performance, command palette, javascript
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -51,6 +51,9 @@ Yes. Click "Choose image" and the media modal opens as before. The first click l
 Measured on WordPress 7.2-beta4 (see the article this plugin is based on): Settings > General went from 80 scripts to 39, the Dashboard after login from 6.7 MB downloaded to 1.4 MB, and DOMContentLoaded on the Dashboard from 282 ms to 155 ms (696 ms to 226 ms on a 4x slower CPU). Your numbers will vary, but the scripts that are gone are gone on every classic admin screen.
 
 == Changelog ==
+
+= 1.2.0 =
+* Renamed from Lazy Command Palette to Lazy Admin. No functional changes.
 
 = 1.1.0 =
 * Loads the media modal on demand on Settings > General: the media library scripts and modal templates wait until the Site Icon button is clicked. This runs on every version, including 7.3 and later.

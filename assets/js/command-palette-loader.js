@@ -3,7 +3,7 @@
  *
  * On screens that do not load the Command Palette up front, its scripts and
  * styles are printed into an inert template by
- * lcp_print_command_palette_assets_template(). They are only added to the page
+ * la_print_command_palette_assets_template(). They are only added to the page
  * when the palette is first requested, with the keyboard shortcut or the
  * toolbar button, so that they do not delay every admin page load.
  *

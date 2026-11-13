@@ -3,7 +3,7 @@
  *
  * On screens that defer the media modal, its scripts, styles and HTML
  * templates are printed into an inert template by
- * lcp_print_media_assets_template(). They are only added to the page when the
+ * la_print_media_assets_template(). They are only added to the page when the
  * Site Icon button is clicked, so that they do not delay the Settings screen.
  *
  * Core's site-icon.js is left untouched: it binds the button on page load and
@@ -11,11 +11,11 @@
  * capture phase, loads the assets, and then lets the click through to it by
  * re-dispatching it, so the modal opens with everything in place.
  *
- * The loader is also exposed as window.lcpLoadMediaAssets(), for anything else
+ * The loader is also exposed as window.laLoadMediaAssets(), for anything else
  * that wants the modal's assets on the page before calling wp.media().
  */
 ( function ( window, document ) {
-	const TEMPLATE_ID = 'lcp-media-assets';
+	const TEMPLATE_ID = 'la-media-assets';
 	const BUTTON_SELECTOR = '#choose-from-library-button';
 
 	let isLoading = false;
@@ -150,7 +150,7 @@
 		return loadingPromise;
 	}
 
-	window.lcpLoadMediaAssets = loadMediaAssets;
+	window.laLoadMediaAssets = loadMediaAssets;
 
 	/*
 	 * The Site Icon button's click handler lives in core's site-icon.js and
