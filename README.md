@@ -53,7 +53,18 @@ Measured on this plugin (WordPress 7.1.4, executed scripts per screen):
 | Media library | 34 | 32 |
 | Post editor | 96 | 96 (unchanged) |
 
-The shared admin stylesheet (the load-styles.php bundle the Posts list, Comments, Users, Plugins, Tools, Export, Import and settings screens all share) went from about 426 KB to about 251 KB minified, about 103 KB to about 70 KB gzipped. The Dashboard's bundle went from 431 KB to 272 KB.
+Stylesheet bundle per screen (load-styles.php, minified KB, WordPress 7.1.4):
+
+| Screen | Before | After | Saved |
+| --- | --- | --- | --- |
+| Dashboard (`/wp-admin/`) | 421 | 273 | 149 |
+| Posts list (`/wp-admin/edit.php`) | 416 | 245 | 172 |
+| Settings > General (`/wp-admin/options-general.php`) | 416 | 267 | 149 |
+| Media library (`/wp-admin/upload.php`) | 451 | 316 | 135 |
+| Post editor (`/wp-admin/post-new.php`) | 1183 | 1028 | 155 |
+| Customizer (`/wp-admin/customize.php`) | 470 | 327 | 144 |
+
+The Posts list row is the shared bundle: the Posts and Pages lists, Comments, Users, Plugins, Tools, Export, Import and the settings screens all load the same stylesheet URL, so they share one cache entry. Gzipped, the same six screens save 24 to 31 KB each on the wire.
 
 ## Development
 

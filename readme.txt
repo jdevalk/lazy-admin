@@ -94,6 +94,8 @@ Yes. The CSS trim only removes stylesheets for screens you are not on: the Dashb
 
 Measured on WordPress 7.2-beta4 (see the article this plugin is based on): Settings > General went from 80 scripts to 39, the Dashboard after login from 6.7 MB downloaded to 1.4 MB, and DOMContentLoaded on the Dashboard from 282 ms to 155 ms (696 ms to 226 ms on a 4x slower CPU). Your numbers will vary, but the scripts that are gone are gone on every classic admin screen.
 
+Measured on this plugin (WordPress 7.1.4, stylesheet bundle per screen, minified KB): Dashboard 421 to 273, Posts list 416 to 245, Settings > General 416 to 267, Media library 451 to 316, Post editor 1183 to 1028, Customizer 470 to 327. Gzipped, each of those screens saves 24 to 31 KB on the wire. The Posts list number is the shared bundle, so the Posts and Pages lists, Comments, Users, Plugins, Tools, Export, Import and settings screens all share it.
+
 == Changelog ==
 
 = 0.5.0 =
