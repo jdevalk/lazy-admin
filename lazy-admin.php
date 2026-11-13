@@ -3,7 +3,7 @@
  * Plugin Name:       Lazy Admin
  * Plugin URI:        https://github.com/jdevalk/lazy-admin
  * Description:       Loads the Command Palette, media modal, code editor, update scripts and media player only when you use them, and trims the admin CSS bundle to the stylesheets each screen needs. Classic admin screens load much faster.
- * Version:           0.5.1
+ * Version:           0.5.2
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Tested up to:      7.1
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LA_VERSION', '0.5.1' );
+define( 'LA_VERSION', '0.5.2' );
 
 add_action( 'init', 'la_init' );
 
@@ -1482,10 +1482,13 @@ function la_trim_css_reenqueue_map() {
 			'theme-install'   => array( 'themes' ),
 			'about'           => array( 'about' ),
 			'revision'        => array( 'revisions' ),
-			'nav-menus'       => array( 'nav-menus' ),
+			'nav-menus'       => array( 'nav-menus', 'edit' ),
 			'widgets'         => array( 'widgets' ),
 			'options-general' => array( 'media' ),
 			'customize'       => array( 'nav-menus', 'widgets', 'themes' ),
+			'site-health'     => array( 'edit' ),
+			'comment'         => array( 'edit' ),
+			'link'            => array( 'edit' ),
 		)
 	);
 }
@@ -1510,7 +1513,11 @@ function la_trim_css_reenqueue_map() {
  * The Dashboard keeps edit as well as dashboard: edit.css holds the
  * .postbox rule (white background, border, shadow) that the dashboard
  * widgets are, so stripping it leaves them flat and grey. The post
- * editor keeps edit and media through the base check below.
+ * editor keeps edit and media through the base check below. Site Health
+ * keeps edit because edit.css holds the .health-check-accordion and
+ * .health-check-tab rules for its test results. The comment and link
+ * editors and the menu editor keep edit because their forms use
+ * postboxes too.
  */
 function la_maybe_trim_admin_css() {
 	if ( ! apply_filters( 'la_trim_css', true ) ) {

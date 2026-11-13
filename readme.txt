@@ -4,7 +4,7 @@ Tags: admin, performance, command palette, javascript
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.5.1
+Stable tag: 0.5.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -99,6 +99,9 @@ Measured on WordPress 7.2-beta4 (see the article this plugin is based on): Setti
 Stylesheet bundle only (load-styles.php, minified KB): Dashboard 421 to 304 (28% smaller), Posts list 416 to 245 (41%), Settings > General 416 to 267 (36%), Media library 451 to 316 (30%), Post editor 1183 to 1028 (13%), Customizer 470 to 327 (30%). Gzipped, each of those screens saves 21 to 31 KB on the wire. The Posts list number is the shared bundle, so the Posts and Pages lists, Comments, Users, Plugins, Tools, Export, Import and settings screens all share it.
 
 == Changelog ==
+
+= 0.5.2 =
+* Fixed: Site Health, the comment editor, the menu editor and the link editor keep edit.css, so their accordion and postbox styles load. The 0.5.0 CSS trim removed edit.css from every screen except the post editor, but edit.css also holds the .health-check-accordion and .health-check-tab rules for Site Health and the .postbox rule for the comment, link and menu editors. Same fix as 0.5.1 did for the Dashboard.
 
 = 0.5.1 =
 * Fixed: the Dashboard keeps edit.css, so the dashboard widgets keep their white background, border and shadow. The 0.5.0 CSS trim removed it from the Dashboard, leaving the widgets flat and grey. The Dashboard bundle is now 304 KB instead of 273 KB, still 28% smaller than before the trim.
