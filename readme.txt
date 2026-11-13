@@ -4,11 +4,11 @@ Tags: admin, performance, command palette, javascript
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Loads the Command Palette, the media modal and the Customizer's code editor only when you open them, so classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, and the Customizer skips the CodeMirror editor until the Additional CSS section opens.
+Loads the Command Palette, the media modal, the Customizer's code editor, the plugin update and install scripts, and the media library's audio and video player only when you open them, so classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, six screens skip the update and install scripts until an update, install or details button is used, and the media library skips the audio and video player until an audio or video attachment opens.
 
 == Description ==
 
@@ -23,6 +23,10 @@ This is the patch from [Trac #66642](https://core.trac.wordpress.org/ticket/6664
 The same trick is applied to the media modal on Settings > General. That screen loads the whole media library stack, about 400 KB of scripts plus 57 KB of modal templates, for one button: the Site Icon picker. This plugin holds those assets back until the button is clicked, then loads them and opens the modal. The post editor, the media library and the customizer need the modal up front, so they are left alone. Unlike the palette part, the media deferral runs on every version, including 7.3 and later.
 
 The same trick is applied a third time to the code editor in the Customizer. That screen loads the CodeMirror editor, about 600 KB of scripts, for the Additional CSS section, which starts collapsed. This plugin holds the editor back until the section is first opened, then loads it and initializes the editor. The Custom HTML widget's editor is handled the same way when its form opens. Like the media deferral, this runs on every version.
+
+The same trick is applied a fourth time to the update, install and details scripts on the Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens. Those six screens load about 66 KB of scripts for the plugin update, install and details modal, the thickbox modal and the media upload helper, and they are only needed when an update, install, details or auto-update button is used. This plugin holds them back until one of those buttons is used, then loads them and runs the action. Like the media and code editor deferrals, this runs on every version.
+
+The same trick is applied a fifth time to the audio and video player in the media library. That screen loads the MediaElement player, about 170 KB of scripts and styles, for the audio and video previews in the attachment details, and most attachments are images. This plugin holds the player back until an audio or video attachment is opened, then loads it and builds the player. The post editor and the Customizer need the player up front, so they are left alone. Like the other deferrals, this runs on every version.
 
 There are no settings. Activate it and every classic admin screen gets faster.
 
@@ -52,11 +56,23 @@ Yes. Click "Choose image" and the media modal opens as before. The first click l
 
 Yes. Open the Additional CSS section in the Customizer and the code editor loads, with syntax highlighting and linting as before. The first open loads the editor's scripts first, so it takes a moment longer; after that it opens instantly. If you never open the section, the editor never loads.
 
+= Do plugin updates, installs and the plugin details modal still work? =
+
+Yes. Update, install, activate and auto-update buttons work as before; the first one loads the update scripts first, so it takes a moment longer. The plugin details modal opens as before, and the auto-update toggle works with the keyboard too. If you never touch those buttons, the scripts never load.
+
+= Does the audio and video player in the media library still work? =
+
+Yes. Open an audio or video attachment and the player loads, with playback as before. The first open loads the player's scripts first, so it takes a moment longer; after that it plays instantly. Image attachments never load the player.
+
 = How much faster is it? =
 
 Measured on WordPress 7.2-beta4 (see the article this plugin is based on): Settings > General went from 80 scripts to 39, the Dashboard after login from 6.7 MB downloaded to 1.4 MB, and DOMContentLoaded on the Dashboard from 282 ms to 155 ms (696 ms to 226 ms on a 4x slower CPU). Your numbers will vary, but the scripts that are gone are gone on every classic admin screen.
 
 == Changelog ==
+
+= 1.4.0 =
+* Loads the update, install and details scripts on demand on the Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens: the updates, thickbox, plugin-install and media-upload scripts wait until an update, install, details or auto-update button is used. This runs on every version.
+* Loads the MediaElement audio and video player on demand in the media library: the player scripts and styles wait until an audio or video attachment is opened. Image attachments never load the player. This runs on every version.
 
 = 1.3.0 =
 * Loads the Customizer's code editor on demand: CodeMirror and the code editor wrapper wait until the Additional CSS section is first opened, or a Custom HTML widget form opens. This runs on every version.

@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Lazy Admin
  * Plugin URI:        https://github.com/jdevalk/lazy-admin
- * Description:       Loads the Command Palette, the media modal and the Customizer's code editor only when you open them. Classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, and the Customizer skips the CodeMirror editor until the Additional CSS section opens, so they load noticeably faster.
- * Version:           1.3.0
+ * Description:       Loads the Command Palette, the media modal, the Customizer's code editor, the update and plugin install scripts, and the media library's audio and video player only when you open them. Classic admin screens skip the ~40 block editor scripts the palette needs, Settings > General skips the media library scripts the Site Icon picker needs, the Customizer skips the CodeMirror editor until the Additional CSS section opens, the Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens skip the update and install scripts until one of their buttons is used, and the media library skips the audio and video player until an audio or video attachment is opened, so they load noticeably faster.
+ * Version:           1.4.0
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Tested up to:      7.1
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LA_VERSION', '1.3.0' );
+define( 'LA_VERSION', '1.4.0' );
 
 add_action( 'init', 'la_init' );
 
@@ -81,6 +81,36 @@ function la_init() {
 	 */
 	add_action( 'customize_controls_enqueue_scripts', 'la_maybe_defer_codemirror_assets', 1000 );
 	add_action( 'customize_controls_print_footer_scripts', 'la_print_codemirror_assets_template', 21 );
+
+	/*
+	 * The update and install scripts are the same shape of win on the screens
+	 * that manage plugins, themes and updates: updates.js, thickbox,
+	 * plugin-install.js and media-upload.js are loaded up front for buttons
+	 * that are only used on click. Unlike the media modal, these screens
+	 * enqueue them before the head prints, so the snapshot cannot tell them
+	 * apart from the page's own scripts; the handles are named explicitly
+	 * instead. The first pass runs at the end of the enqueue hook, before the
+	 * head prints the thickbox stylesheet; the second pass in the footer
+	 * catches anything a plugin enqueued while rendering.
+	 */
+	add_action( 'admin_enqueue_scripts', 'la_maybe_defer_updates_assets', 1000 );
+	add_action( 'admin_footer', 'la_maybe_defer_updates_assets', 9 );
+	add_action( 'admin_print_footer_scripts', 'la_print_updates_assets_template', 21 );
+
+	/*
+	 * The media library's audio and video player is the same shape of win:
+	 * the 154 KB MediaElement library loads up front because media-views
+	 * depends on the wp-mediaelement wrapper, but the player is only built
+	 * when an audio or video attachment's details open. The wrapper goes with
+	 * it: its initialize() would throw on load without the library, since it
+	 * calls the jQuery plugin the library defines. The dependency is removed
+	 * from media-views instead of dequeuing the wrapper alone, because
+	 * media-views.js never references wp.mediaelement; the player is built
+	 * from window.MediaElementPlayer, which the library defines.
+	 */
+	add_action( 'admin_enqueue_scripts', 'la_maybe_defer_mediaelement_assets', 1000 );
+	add_action( 'admin_footer', 'la_maybe_defer_mediaelement_assets', 9 );
+	add_action( 'admin_print_footer_scripts', 'la_print_mediaelement_assets_template', 21 );
 }
 
 /**
@@ -698,4 +728,260 @@ function la_print_codemirror_assets_template() {
 	}
 
 	printf( "<template id=\"la-codemirror-assets\">\n%s</template>\n", $assets );
+}
+
+/**
+ * Tells whether the current screen defers the update and install scripts.
+ *
+ * The Dashboard, Themes, Plugins, Add Plugins, Update Core and Import screens
+ * load updates.js, thickbox, plugin-install.js and media-upload.js up front
+ * for buttons that are only used on click. Other screens that load those
+ * scripts, such as the post editor's media tabs, need them where they are.
+ *
+ * @return bool Whether the update and install scripts are deferred on this screen.
+ */
+function la_screen_defers_updates() {
+	/**
+	 * Filters the screens that load the update and install scripts on demand.
+	 *
+	 * @param string[] $screens Screen IDs, as returned by get_current_screen()->id.
+	 */
+	$screens = apply_filters( 'la_defer_updates_screens', array( 'dashboard', 'themes', 'plugins', 'plugin-install', 'update-core', 'import' ) );
+	$screen  = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+	return $screen && in_array( $screen->id, (array) $screens, true );
+}
+
+/**
+ * Moves the update and install scripts and the thickbox stylesheet into the page footer.
+ *
+ * This runs at the end of admin_enqueue_scripts, after the screens above
+ * enqueued the cluster, and again in the footer for anything a plugin
+ * enqueued while rendering. Only the four scripts and the one stylesheet are
+ * deferred: updates.js, thickbox, plugin-install.js and media-upload.js, and
+ * thickbox.css. The libraries they depend on, jQuery, jQuery UI Core,
+ * Shortcode and the rest, are left alone, so a plugin that uses one of them
+ * without declaring it keeps working. The deferred assets wait in the
+ * template printed by la_print_updates_assets_template(), and the loader
+ * enqueued here adds them to the page when one of their buttons is first
+ * used. A script that still needs one of them prints it normally, because
+ * WordPress resolves it as that script's dependency.
+ */
+function la_maybe_defer_updates_assets() {
+	if ( ! la_screen_defers_updates() ) {
+		return;
+	}
+
+	$defer_scripts = $GLOBALS['la_deferred_updates_scripts'] ?? array();
+	$defer_styles  = $GLOBALS['la_deferred_updates_styles'] ?? array();
+
+	// plugin-install must come after media-upload: both overwrite
+	// window.tb_position. media-upload.js does it synchronously in an IIFE,
+	// plugin-install.js in a jQuery ready callback. If plugin-install.js
+	// runs first, its ready callback fires while the next script is being
+	// fetched and media-upload.js's IIFE then wins, leaving
+	// plugin-install.js's tbWindow closure unset, so the plugin-details
+	// modal throws on tbWindow.hasClass. Printing plugin-install last makes
+	// its ready callback fire after media-upload.js ran, so window.tb_position
+	// ends up as plugin-install.js's version, matching a normal page.
+	foreach ( array( 'updates', 'thickbox', 'media-upload', 'plugin-install' ) as $handle ) {
+		if ( wp_script_is( $handle, 'enqueued' ) && ! in_array( $handle, $defer_scripts, true ) ) {
+			$defer_scripts[] = $handle;
+			wp_dequeue_script( $handle );
+		}
+	}
+
+	foreach ( array( 'thickbox' ) as $handle ) {
+		if ( wp_style_is( $handle, 'enqueued' ) && ! in_array( $handle, $defer_styles, true ) ) {
+			$defer_styles[] = $handle;
+			wp_dequeue_style( $handle );
+		}
+	}
+
+	if ( ! $defer_scripts && ! $defer_styles ) {
+		return;
+	}
+
+	$GLOBALS['la_deferred_updates_scripts'] = $defer_scripts;
+	$GLOBALS['la_deferred_updates_styles']  = $defer_styles;
+
+	if ( ! wp_script_is( 'la-updates-loader', 'enqueued' ) && ! wp_script_is( 'la-updates-loader', 'done' ) ) {
+		wp_register_script(
+			'la-updates-loader',
+			plugins_url( 'assets/js/updates-loader.js', __FILE__ ),
+			array(),
+			LA_VERSION,
+			true
+		);
+		wp_enqueue_script( 'la-updates-loader' );
+	}
+}
+
+/**
+ * Prints the update and install scripts and the thickbox stylesheet into an inert template.
+ *
+ * The loader adds the template's contents to the page when one of the
+ * update, install, details or auto-update buttons is first used. Nothing is
+ * printed when the cluster was never enqueued on the screen.
+ */
+function la_print_updates_assets_template() {
+	$scripts = $GLOBALS['la_deferred_updates_scripts'] ?? array();
+	$styles  = $GLOBALS['la_deferred_updates_styles'] ?? array();
+
+	if ( ! $scripts && ! $styles ) {
+		return;
+	}
+
+	ob_start();
+	wp_styles()->do_items( $styles );
+	wp_scripts()->do_items( $scripts );
+	$assets = ob_get_clean();
+
+	if ( '' === trim( $assets ) ) {
+		return;
+	}
+
+	printf( "<template id=\"la-updates-assets\">\n%s</template>\n", $assets );
+}
+
+/**
+ * Tells whether the current screen defers the media library's audio and video player.
+ *
+ * Only the media library does today: it is the one screen that loads the
+ * MediaElement library for audio and video previews that most views never
+ * open. The post editor and the customizer build audio and video players up
+ * front, so they are left alone.
+ *
+ * @return bool Whether the audio and video player is deferred on this screen.
+ */
+function la_screen_defers_mediaelement() {
+	/**
+	 * Filters the screens that load the media library's audio and video player on demand.
+	 *
+	 * @param string[] $screens Screen IDs, as returned by get_current_screen()->id.
+	 */
+	$screens = apply_filters( 'la_defer_mediaelement_screens', array( 'upload' ) );
+	$screen  = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+	return $screen && in_array( $screen->id, (array) $screens, true );
+}
+
+/**
+ * Moves the media library's audio and video player into the page footer.
+ *
+ * This runs at the end of admin_enqueue_scripts, after upload.php enqueued
+ * the media stack, and again in the footer for anything enqueued while
+ * rendering. The MediaElement library, its migrate script, the
+ * wp-mediaelement wrapper and both stylesheets are deferred. The wrapper's
+ * dependency is removed from media-views, so WordPress does not print the
+ * library back as that script's dependency; media-views.js never references
+ * wp.mediaelement, and the player is built from window.MediaElementPlayer,
+ * which the library defines. The deferred assets wait in the template printed
+ * by la_print_mediaelement_assets_template(), and the loader enqueued here
+ * adds them to the page when an audio or video attachment's details open.
+ */
+function la_maybe_defer_mediaelement_assets() {
+	if ( ! la_screen_defers_mediaelement() ) {
+		return;
+	}
+
+	/*
+	 * The player is never enqueued directly: it only arrives as a dependency
+	 * of media-views, so wp_script_is() cannot see it. What matters is
+	 * whether it is in the dependency closure of what the page enqueued.
+	 */
+	$scripts = wp_scripts();
+	$styles  = wp_styles();
+
+	$script_closure = la_dependency_closure( $scripts, $scripts->queue );
+	$style_closure  = la_dependency_closure( $styles, $styles->queue );
+
+	if ( ! in_array( 'wp-mediaelement', $script_closure, true ) && ! in_array( 'wp-mediaelement', $style_closure, true ) ) {
+		return;
+	}
+
+	/*
+	 * media-views depends on wp-mediaelement, so without this WordPress
+	 * prints the library back as that script's dependency. The dependency is
+	 * removed from the registry, not from the page: media-views.js never
+	 * references wp.mediaelement.
+	 */
+	if ( isset( $scripts->registered['media-views'] ) ) {
+		$scripts->registered['media-views']->deps = array_values(
+			array_diff( $scripts->registered['media-views']->deps, array( 'wp-mediaelement' ) )
+		);
+	}
+
+	if ( isset( $styles->registered['media-views'] ) ) {
+		$styles->registered['media-views']->deps = array_values(
+			array_diff( $styles->registered['media-views']->deps, array( 'wp-mediaelement' ) )
+		);
+	}
+
+	/*
+	 * The handles are named explicitly: they are dependencies, not queue
+	 * entries, so dequeuing alone cannot keep them off the page. The
+	 * template printer adds them from the registry instead.
+	 */
+	$defer_scripts = $GLOBALS['la_deferred_mediaelement_scripts'] ?? array();
+	$defer_styles  = $GLOBALS['la_deferred_mediaelement_styles'] ?? array();
+
+	foreach ( array( 'mediaelement', 'mediaelement-core', 'mediaelement-migrate', 'wp-mediaelement' ) as $handle ) {
+		if ( ! in_array( $handle, $defer_scripts, true ) ) {
+			$defer_scripts[] = $handle;
+		}
+		if ( wp_script_is( $handle, 'enqueued' ) ) {
+			wp_dequeue_script( $handle );
+		}
+	}
+
+	foreach ( array( 'mediaelement', 'wp-mediaelement' ) as $handle ) {
+		if ( ! in_array( $handle, $defer_styles, true ) ) {
+			$defer_styles[] = $handle;
+		}
+		if ( wp_style_is( $handle, 'enqueued' ) ) {
+			wp_dequeue_style( $handle );
+		}
+	}
+
+	$GLOBALS['la_deferred_mediaelement_scripts'] = $defer_scripts;
+	$GLOBALS['la_deferred_mediaelement_styles']  = $defer_styles;
+
+	if ( ! wp_script_is( 'la-mediaelement-loader', 'enqueued' ) && ! wp_script_is( 'la-mediaelement-loader', 'done' ) ) {
+		wp_register_script(
+			'la-mediaelement-loader',
+			plugins_url( 'assets/js/mediaelement-loader.js', __FILE__ ),
+			array(),
+			LA_VERSION,
+			true
+		);
+		wp_enqueue_script( 'la-mediaelement-loader' );
+	}
+}
+
+/**
+ * Prints the media library's audio and video player into an inert template.
+ *
+ * The loader adds the template's contents to the page when an audio or video
+ * attachment's details open. Nothing is printed when the player was never
+ * enqueued on the screen.
+ */
+function la_print_mediaelement_assets_template() {
+	$scripts = $GLOBALS['la_deferred_mediaelement_scripts'] ?? array();
+	$styles  = $GLOBALS['la_deferred_mediaelement_styles'] ?? array();
+
+	if ( ! $scripts && ! $styles ) {
+		return;
+	}
+
+	ob_start();
+	wp_styles()->do_items( $styles );
+	wp_scripts()->do_items( $scripts );
+	$assets = ob_get_clean();
+
+	if ( '' === trim( $assets ) ) {
+		return;
+	}
+
+	printf( "<template id=\"la-mediaelement-assets\">\n%s</template>\n", $assets );
 }
