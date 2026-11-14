@@ -4,7 +4,7 @@ Tags: admin, performance, command palette, javascript
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.5.2
+Stable tag: 0.5.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -15,6 +15,8 @@ Loads the Command Palette, media modal, code editor, update scripts and media pl
 Since WordPress 6.9, every classic screen in wp-admin loads about 40 block editor scripts before you can click anything: React, the component library, the block editor, the data layer and more. They are there for one feature, the Command Palette, the search box that opens with Ctrl/Cmd+K. The palette is useful. But it only needs those scripts once someone opens it, and on most admin page views nobody does.
 
 This plugin loads the palette on demand instead. Admin screens get a 1.4 KB loader instead of the whole palette. The palette's scripts and styles wait in an inert template at the end of the page. On the first Ctrl/Cmd+K or a click on the toolbar button, the loader adds them and opens the palette. The first open takes 100 to 250 ms. After that it opens instantly, as before.
+
+Once the page has loaded and the browser is idle, the loader also loads the palette assets in the background, so the first open is instant instead of waiting for the download. The on-demand load wins on blocking time, but the first open takes about 1.8 seconds on a slow connection without it. Loading on idle keeps the initial load fast and makes the first open fast too. Turn the background load off with the la_prefetch_palette_on_idle filter if you would rather download the assets only when the palette opens.
 
 The post editor and the site editor load these scripts anyway, so they keep the palette up front, unchanged.
 
@@ -99,6 +101,9 @@ Measured on WordPress 7.2-beta4 (see the article this plugin is based on): Setti
 Stylesheet bundle only (load-styles.php, minified KB): Dashboard 421 to 304 (28% smaller), Posts list 416 to 245 (41%), Settings > General 416 to 267 (36%), Media library 451 to 316 (30%), Post editor 1183 to 1028 (13%), Customizer 470 to 327 (30%). Gzipped, each of those screens saves 21 to 31 KB on the wire. The Posts list number is the shared bundle, so the Posts and Pages lists, Comments, Users, Plugins, Tools, Export, Import and settings screens all share it.
 
 == Changelog ==
+
+= 0.5.3 =
+* Added: the Command Palette assets load in the background once the page has loaded and the browser is idle, so the first palette open is instant. The on-demand load wins on blocking time, but the first open takes about 1.8 seconds on a slow connection without it. Loading on idle keeps the initial load fast and makes the first open fast too. Turn it off with the la_prefetch_palette_on_idle filter.
 
 = 0.5.2 =
 * Fixed: Site Health, the comment editor, the menu editor and the link editor keep edit.css, so their accordion and postbox styles load. The 0.5.0 CSS trim removed edit.css from every screen except the post editor, but edit.css also holds the .health-check-accordion and .health-check-tab rules for Site Health and the .postbox rule for the comment, link and menu editors. Same fix as 0.5.1 did for the Dashboard.

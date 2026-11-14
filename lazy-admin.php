@@ -3,7 +3,7 @@
  * Plugin Name:       Lazy Admin
  * Plugin URI:        https://github.com/jdevalk/lazy-admin
  * Description:       Loads the Command Palette, media modal, code editor, update scripts and media player only when you use them, and trims the admin CSS bundle to the stylesheets each screen needs. Classic admin screens load much faster.
- * Version:           0.5.2
+ * Version:           0.5.3
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Tested up to:      7.1
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LA_VERSION', '0.5.2' );
+define( 'LA_VERSION', '0.5.3' );
 
 add_action( 'init', 'la_init' );
 
@@ -328,6 +328,14 @@ function la_enqueue_command_palette_loader() {
 		true
 	);
 	wp_enqueue_script( 'wp-command-palette-loader' );
+
+	if ( ! apply_filters( 'la_prefetch_palette_on_idle', true ) ) {
+		wp_add_inline_script(
+			'wp-command-palette-loader',
+			'window.laPaletteIdleLoad = false;',
+			'before'
+		);
+	}
 
 	wp_add_inline_script(
 		'wp-core-commands',

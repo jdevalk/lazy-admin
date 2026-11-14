@@ -7,6 +7,14 @@
  * when the palette is first requested, with the keyboard shortcut or the
  * toolbar button, so that they do not delay every admin page load.
  *
+ * Once the page has loaded and the browser is idle, the assets are also
+ * loaded in the background, so the first palette open is instant instead of
+ * waiting for the download. This follows the suggestion on Trac #66642: the
+ * on-demand load wins on blocking time, but the first open takes about
+ * 1.8 seconds on a slow connection without it. Loading on idle keeps the
+ * initial load fast and makes the first open fast too. The idle load can be
+ * turned off with the la_prefetch_palette_on_idle filter.
+ *
  * This is the loader from WordPress 7.3 (Trac #66642, WordPress/wordpress-develop
  * pull request #15871), shipped with this plugin so the same behavior is available
  * on WordPress 6.9 to 7.2. The plugin does nothing on 7.3 and later, where core
@@ -17,7 +25,8 @@
 	const TOOLBAR_LINK_SELECTOR = '#wp-admin-bar-command-palette > .ab-item';
 	const IS_APPLE_OS = /Mac|iPod|iPhone|iPad/.test( window.navigator.platform );
 
-	let isLoading = false;
+	let assetsPromise = null;
+	let assetsLoaded = false;
 
 	/**
 	 * Tells whether a key press is the shortcut that opens the Command Palette.
@@ -32,12 +41,12 @@
 	}
 
 	/**
-	 * Tells whether the Command Palette assets are still waiting in their template.
+	 * Tells whether the Command Palette assets are still waiting to be added.
 	 *
-	 * @return {boolean} Whether the assets have not been added to the page yet.
+	 * @return {boolean} Whether the assets have not finished loading yet.
 	 */
 	function arePaletteAssetsPending() {
-		return isLoading || null !== document.getElementById( TEMPLATE_ID );
+		return ! assetsLoaded;
 	}
 
 	/**
@@ -138,24 +147,83 @@
 	}
 
 	/**
-	 * Opens the Command Palette, adding its assets to the page first if needed.
+	 * Adds the Command Palette's scripts and styles from the template to the page.
+	 *
+	 * The first call starts the load; later calls wait for the same load, so the
+	 * idle loader and the open handler never load the assets twice, and opening
+	 * the palette while the idle load is still running waits for it instead of
+	 * doing nothing.
+	 *
+	 * @return {Promise<void>} Resolves once every script has run and every stylesheet has loaded.
 	 */
-	async function openPalette() {
-		if ( isLoading ) {
-			return;
+	function loadPaletteAssets() {
+		if ( assetsPromise ) {
+			return assetsPromise;
 		}
 
 		const template = /** @type {HTMLTemplateElement|null} */ ( document.getElementById( TEMPLATE_ID ) );
 
-		if ( template ) {
-			isLoading = true;
-			template.remove();
-			await insertPaletteAssets( template.content );
-			isLoading = false;
+		if ( ! template ) {
+			assetsLoaded = true;
+			assetsPromise = Promise.resolve();
+			return assetsPromise;
 		}
+
+		template.remove();
+		assetsPromise = insertPaletteAssets( template.content ).then( () => {
+			assetsLoaded = true;
+		} );
+
+		return assetsPromise;
+	}
+
+	/**
+	 * Opens the Command Palette, adding its assets to the page first if needed.
+	 */
+	async function openPalette() {
+		await loadPaletteAssets();
 
 		window.wp.data.dispatch( 'core/commands' ).open();
 	}
+
+	/**
+	 * Starts loading the Command Palette assets once the page has loaded and
+	 * the browser is idle, so the first palette open is instant.
+	 *
+	 * This only downloads and runs the assets; it does not open the palette.
+	 * It runs after the load event so it never competes with the initial page
+	 * load, and it uses requestIdleCallback (falling back to a short timeout)
+	 * so it runs when the browser has spare time. Set window.laPaletteIdleLoad
+	 * to false before this script runs to turn it off.
+	 */
+	function loadPaletteAssetsWhenIdle() {
+		if ( false === window.laPaletteIdleLoad ) {
+			return;
+		}
+
+		const load = () => {
+			if ( 'requestIdleCallback' in window ) {
+				window.requestIdleCallback(
+					() => {
+						loadPaletteAssets();
+					},
+					{ timeout: 2000 }
+				);
+			} else {
+				window.setTimeout( () => {
+					loadPaletteAssets();
+				}, 1000 );
+			}
+		};
+
+		if ( 'complete' === document.readyState ) {
+			load();
+		} else {
+			window.addEventListener( 'load', load );
+		}
+	}
+
+	loadPaletteAssetsWhenIdle();
 
 	document.addEventListener( 'keydown', ( event ) => {
 		if ( event.defaultPrevented || ! isOpenPaletteShortcut( event ) || ! arePaletteAssetsPending() ) {
