@@ -7,13 +7,15 @@
  * when the palette is first requested, with the keyboard shortcut or the
  * toolbar button, so that they do not delay every admin page load.
  *
- * Once the page has loaded and the browser is idle, the assets are also
- * loaded in the background, so the first palette open is instant instead of
- * waiting for the download. This follows the suggestion on Trac #66642: the
- * on-demand load wins on blocking time, but the first open takes about
- * 1.8 seconds on a slow connection without it. Loading on idle keeps the
- * initial load fast and makes the first open fast too. The idle load can be
- * turned off with the la_prefetch_palette_on_idle filter.
+ * Once the page has loaded and the browser is idle, the assets are
+ * prefetched into the browser cache, so the first palette open only has to
+ * parse and run them from cache (about 100 to 250 ms) instead of waiting
+ * for the download (about 1.8 seconds on a slow connection without it).
+ * Prefetching only spends bandwidth: unlike loading the assets on idle, it
+ * does not parse or run about 5 MB of JavaScript on page views where the
+ * palette is never opened. This matches WordPress core's approach in the
+ * same patch. The prefetch can be turned off with the
+ * la_prefetch_palette_on_idle filter.
  *
  * This is the loader from WordPress 7.3 (Trac #66642, WordPress/wordpress-develop
  * pull request #15871), shipped with this plugin so the same behavior is available
@@ -149,10 +151,12 @@
 	/**
 	 * Adds the Command Palette's scripts and styles from the template to the page.
 	 *
-	 * The first call starts the load; later calls wait for the same load, so the
-	 * idle loader and the open handler never load the assets twice, and opening
-	 * the palette while the idle load is still running waits for it instead of
-	 * doing nothing.
+	 * The first call starts the load; later calls wait for the same load, so
+	 * opening the palette twice never loads the assets twice, and opening
+	 * the palette while a load is still running waits for it instead of
+	 * doing nothing. Prefetching on idle does not start a load, so the
+	 * first open after a prefetch still inserts the assets, served from
+	 * cache.
 	 *
 	 * @return {Promise<void>} Resolves once every script has run and every stylesheet has loaded.
 	 */
@@ -187,43 +191,93 @@
 	}
 
 	/**
-	 * Starts loading the Command Palette assets once the page has loaded and
-	 * the browser is idle, so the first palette open is instant.
+	 * Asks the browser to download a file into its cache, without parsing
+	 * or running it.
 	 *
-	 * This only downloads and runs the assets; it does not open the palette.
-	 * It runs after the load event so it never competes with the initial page
-	 * load, and it uses requestIdleCallback (falling back to a short timeout)
-	 * so it runs when the browser has spare time. Set window.laPaletteIdleLoad
-	 * to false before this script runs to turn it off.
+	 * @param {string} url The file URL.
+	 * @param {string} as  What the file is ('script' or 'style').
 	 */
-	function loadPaletteAssetsWhenIdle() {
+	function prefetchAsset( url, as ) {
+		const link = document.createElement( 'link' );
+
+		link.rel = 'prefetch';
+		link.as = as;
+		link.href = url;
+		document.head.appendChild( link );
+	}
+
+	/**
+	 * Prefetches the Command Palette's scripts and styles from the template
+	 * into the browser cache.
+	 *
+	 * The template is left in place and nothing is parsed or run, so the
+	 * first open still goes through loadPaletteAssets(), which inserts the
+	 * assets from the template, now served from cache. Prefetching runs at
+	 * most once.
+	 */
+	let assetsPrefetched = false;
+
+	function prefetchPaletteAssets() {
+		if ( assetsPrefetched ) {
+			return;
+		}
+		assetsPrefetched = true;
+
+		const template = /** @type {HTMLTemplateElement|null} */ ( document.getElementById( TEMPLATE_ID ) );
+
+		if ( ! template ) {
+			return;
+		}
+
+		for ( const script of template.content.querySelectorAll( 'script[src]' ) ) {
+			prefetchAsset( script.getAttribute( 'src' ), 'script' );
+		}
+
+		for ( const style of template.content.querySelectorAll( 'link[rel="stylesheet"]' ) ) {
+			prefetchAsset( style.getAttribute( 'href' ), 'style' );
+		}
+	}
+
+	/**
+	 * Starts prefetching the Command Palette assets once the page has loaded
+	 * and the browser is idle, so the first palette open only parses and
+	 * runs them from cache instead of downloading them first.
+	 *
+	 * This only downloads the assets; it does not parse or run them and does
+	 * not open the palette. It runs after the load event so it never
+	 * competes with the initial page load, and it uses requestIdleCallback
+	 * (falling back to a short timeout) so it runs when the browser has
+	 * spare time. Set window.laPaletteIdleLoad to false before this script
+	 * runs to turn it off.
+	 */
+	function prefetchPaletteAssetsWhenIdle() {
 		if ( false === window.laPaletteIdleLoad ) {
 			return;
 		}
 
-		const load = () => {
+		const prefetch = () => {
 			if ( 'requestIdleCallback' in window ) {
 				window.requestIdleCallback(
 					() => {
-						loadPaletteAssets();
+						prefetchPaletteAssets();
 					},
 					{ timeout: 2000 }
 				);
 			} else {
 				window.setTimeout( () => {
-					loadPaletteAssets();
+					prefetchPaletteAssets();
 				}, 1000 );
 			}
 		};
 
 		if ( 'complete' === document.readyState ) {
-			load();
+			prefetch();
 		} else {
-			window.addEventListener( 'load', load );
+			window.addEventListener( 'load', prefetch );
 		}
 	}
 
-	loadPaletteAssetsWhenIdle();
+	prefetchPaletteAssetsWhenIdle();
 
 	document.addEventListener( 'keydown', ( event ) => {
 		if ( event.defaultPrevented || ! isOpenPaletteShortcut( event ) || ! arePaletteAssetsPending() ) {

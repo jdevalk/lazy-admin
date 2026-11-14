@@ -4,7 +4,7 @@ Tags: admin, performance, command palette, javascript
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.5.3
+Stable tag: 0.5.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ Since WordPress 6.9, every classic screen in wp-admin loads about 40 block edito
 
 This plugin loads the palette on demand instead. Admin screens get a 1.4 KB loader instead of the whole palette. The palette's scripts and styles wait in an inert template at the end of the page. On the first Ctrl/Cmd+K or a click on the toolbar button, the loader adds them and opens the palette. The first open takes 100 to 250 ms. After that it opens instantly, as before.
 
-Once the page has loaded and the browser is idle, the loader also loads the palette assets in the background, so the first open is instant instead of waiting for the download. The on-demand load wins on blocking time, but the first open takes about 1.8 seconds on a slow connection without it. Loading on idle keeps the initial load fast and makes the first open fast too. Turn the background load off with the la_prefetch_palette_on_idle filter if you would rather download the assets only when the palette opens.
+Once the page has loaded and the browser is idle, the loader prefetches the palette assets into the browser cache, so the first open only parses and runs them from cache (about 100 to 250 ms) instead of waiting for the download. The on-demand load wins on blocking time, but the first open takes about 1.8 seconds on a slow connection without it. Prefetching only spends bandwidth: it does not parse or run the assets on page views where the palette is never opened. Turn the prefetch off with the la_prefetch_palette_on_idle filter if you would rather download the assets only when the palette opens.
 
 The post editor and the site editor load these scripts anyway, so they keep the palette up front, unchanged.
 
@@ -101,6 +101,9 @@ Measured on WordPress 7.2-beta4 (see the article this plugin is based on): Setti
 Stylesheet bundle only (load-styles.php, minified KB): Dashboard 421 to 304 (28% smaller), Posts list 416 to 245 (41%), Settings > General 416 to 267 (36%), Media library 451 to 316 (30%), Post editor 1183 to 1028 (13%), Customizer 470 to 327 (30%). Gzipped, each of those screens saves 21 to 31 KB on the wire. The Posts list number is the shared bundle, so the Posts and Pages lists, Comments, Users, Plugins, Tools, Export, Import and settings screens all share it.
 
 == Changelog ==
+
+= 0.5.4 =
+* Changed: the Command Palette assets are now prefetched on idle instead of loaded on idle, matching WordPress core (PR #15871). Prefetching downloads the assets into the browser cache without parsing or running them, so the first open only parses them from cache (about 100 to 250 ms) and page views where the palette is never opened no longer parse and run about 5 MB of JavaScript in the background. Turn it off with the la_prefetch_palette_on_idle filter.
 
 = 0.5.3 =
 * Added: the Command Palette assets load in the background once the page has loaded and the browser is idle, so the first palette open is instant. The on-demand load wins on blocking time, but the first open takes about 1.8 seconds on a slow connection without it. Loading on idle keeps the initial load fast and makes the first open fast too. Turn it off with the la_prefetch_palette_on_idle filter.
